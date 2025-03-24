@@ -19,8 +19,8 @@ type ErrValidationData struct {
 	Errors []FieldError `json:"errors"`
 }
 
-// mapInputHandler handles the input of a request as a map.
-type mapInputHandler[Input any] struct {
+// MapInputHandler handles the input of a request as a map.
+type MapInputHandler[Input any] struct {
 	apiFields      APIFields
 	conversionMap  map[string]func(any) any
 	customRules    map[string]func(any) error
@@ -41,8 +41,8 @@ func NewMapInputHandler[Input any](
 	conversionMap map[string]func(any) any,
 	customRules map[string]func(any) error,
 	inputFactoryFn func() *Input,
-) *mapInputHandler[Input] {
-	inputHandler := &mapInputHandler[Input]{
+) *MapInputHandler[Input] {
+	inputHandler := &MapInputHandler[Input]{
 		apiFields:      apiFields,
 		conversionMap:  conversionMap,
 		customRules:    customRules,
@@ -73,7 +73,7 @@ func NewMapInputHandler[Input any](
 // Returns:
 //   - *Input: The map presentation of the input.
 //   - error: Any error that occurred during processing.
-func (h *mapInputHandler[Input]) Handle(
+func (h *MapInputHandler[Input]) Handle(
 	w http.ResponseWriter, r *http.Request,
 ) (*Input, error) {
 	// Pick input as map.
@@ -101,7 +101,7 @@ func (h *mapInputHandler[Input]) Handle(
 }
 
 // mapToObject decodes a map into the provided object.
-func (h *mapInputHandler[Input]) mapToObject(
+func (h *MapInputHandler[Input]) mapToObject(
 	value map[string]any, obj *Input,
 ) (*Input, error) {
 	cfg := &mapstructure.DecoderConfig{
@@ -121,7 +121,7 @@ func (h *mapInputHandler[Input]) mapToObject(
 }
 
 // pickMap picks a map from the request using the provided APIFields.
-func (h *mapInputHandler[Input]) pickMap(
+func (h *MapInputHandler[Input]) pickMap(
 	r *http.Request, apiFields APIFields,
 ) (map[string]any, error) {
 	// Convert the APIFields to a MapFieldConfig.
@@ -135,12 +135,12 @@ func (h *mapInputHandler[Input]) pickMap(
 }
 
 // getValidator returns a new instance of the getValidator.
-func (h *mapInputHandler[Input]) getValidator() *input.Validate {
+func (h *MapInputHandler[Input]) getValidator() *input.Validate {
 	return input.NewValidate(h.customRules)
 }
 
 // mapFieldConfigFromAPIFields converts an APIFields to a MapFieldConfig.
-func (h *mapInputHandler[Input]) mapFieldConfigFromAPIFields(
+func (h *MapInputHandler[Input]) mapFieldConfigFromAPIFields(
 	apiFields APIFields,
 ) (*input.MapFieldConfig, error) {
 	cfg := &input.MapFieldConfig{
@@ -181,7 +181,7 @@ func (h *mapInputHandler[Input]) mapFieldConfigFromAPIFields(
 
 // TODO: Bug if same named fields (in nested fields?).
 // validateMap validates an input map against the provided APIFields.
-func (h *mapInputHandler[Input]) validateMap(
+func (h *MapInputHandler[Input]) validateMap(
 	input map[string]any, apiFields APIFields,
 ) error {
 	// Ensure required fields are present and validate each value.
@@ -234,7 +234,7 @@ func (h *mapInputHandler[Input]) validateMap(
 }
 
 // testValidationRules tests that the validation rules are valid.
-func (h *mapInputHandler[Input]) testValidationRules(
+func (h *MapInputHandler[Input]) testValidationRules(
 	apiFields APIFields,
 ) error {
 	for _, field := range apiFields {

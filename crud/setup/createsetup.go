@@ -12,20 +12,21 @@ import (
 	"github.com/pureapi/pureapi-framework/crud/errors"
 	"github.com/pureapi/pureapi-framework/crud/services"
 	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
+	"github.com/pureapi/pureapi-framework/defaults"
 	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
 )
 
 // CreateConfig holds the configuration for the create endpoint.
-type CreateConfig[Entity databasetypes.CRUDEntity] struct {
+type CreateConfig struct {
 	// Default config for the create input handler.
-	DefaultInputHandlerConfig *DefaultCreateInputHandlerConfig[Entity]
+	DefaultInputHandlerConfig *DefaultCreateInputHandlerConfig
 	// Default config for the create handler logic.
-	InputHandlerFactoryFn func() endpointtypes.InputHandler[crudtypes.CreateInputer[Entity]]
+	InputHandlerFactoryFn func() endpointtypes.InputHandler[crudtypes.CreateInputer]
 
 	// Default config for the create handler logic.
-	DefaultHandlerLogicConfig *DefaultCreateHandlerLogicConfig[Entity]
+	DefaultHandlerLogicConfig *DefaultCreateHandlerLogicConfig
 	// Override for the create handler logic.
-	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[crudtypes.CreateInputer[Entity]]
+	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[crudtypes.CreateInputer]
 
 	ErrorHandlerFactoryFn  func() endpointtypes.ErrorHandler
 	OutputHandlerFactoryFn func() endpointtypes.OutputHandler
@@ -33,15 +34,15 @@ type CreateConfig[Entity databasetypes.CRUDEntity] struct {
 
 // MustValidate validates and sets defaults for the create config.
 // It returns a new config with the defaults set.
-func (cfg *CreateConfig[Entity]) MustValidate(
-	crudCfg *CRUDConfig[Entity],
-) *CreateConfig[Entity] {
+func (cfg *CreateConfig) MustValidate(
+	crudCfg *CRUDConfig,
+) *CreateConfig {
 	newCfg := *cfg
 
 	if newCfg.InputHandlerFactoryFn == nil {
 		if newCfg.DefaultInputHandlerConfig == nil {
 			newCfg.DefaultInputHandlerConfig =
-				&DefaultCreateInputHandlerConfig[Entity]{}
+				&DefaultCreateInputHandlerConfig{}
 		}
 		if newCfg.DefaultInputHandlerConfig.InputFactoryFn == nil {
 			panic("Create DefaultInputHandler InputFactoryFn is required")
@@ -49,12 +50,12 @@ func (cfg *CreateConfig[Entity]) MustValidate(
 	}
 	newCfg.InputHandlerFactoryFn = withDefaultFactory(
 		newCfg.InputHandlerFactoryFn,
-		func() endpointtypes.InputHandler[crudtypes.CreateInputer[Entity]] {
+		func() endpointtypes.InputHandler[crudtypes.CreateInputer] {
 			return api.NewMapInputHandler(
 				newCfg.DefaultInputHandlerConfig.APIFields,
 				crudCfg.ConversionRules,
 				crudCfg.CustomRules,
-				func() *crudtypes.CreateInputer[Entity] {
+				func() *crudtypes.CreateInputer {
 					inp := newCfg.DefaultInputHandlerConfig.InputFactoryFn()
 					return &inp
 				},
@@ -62,22 +63,26 @@ func (cfg *CreateConfig[Entity]) MustValidate(
 		},
 	)
 
+	// If no override is provided, validate and use default handler logic.
 	if newCfg.HandlerLogicFnFactoryFn == nil {
 		if newCfg.DefaultHandlerLogicConfig == nil {
 			newCfg.DefaultHandlerLogicConfig =
-				&DefaultCreateHandlerLogicConfig[Entity]{}
+				&DefaultCreateHandlerLogicConfig{}
 		}
 		if newCfg.DefaultHandlerLogicConfig.OutputFactoryFn == nil {
 			panic("Create DefaultHandlerLogic OutputFactoryFn is required")
 		}
+		if newCfg.DefaultHandlerLogicConfig.TxManager == nil {
+			newCfg.DefaultHandlerLogicConfig.TxManager = defaults.DefaultTxManager[databasetypes.Mutator]()
+		}
 	}
 	newCfg.HandlerLogicFnFactoryFn = withDefaultFactory(
 		newCfg.HandlerLogicFnFactoryFn,
-		func() endpoint.HandlerLogicFn[crudtypes.CreateInputer[Entity]] {
+		func() endpoint.HandlerLogicFn[crudtypes.CreateInputer] {
 			return SetupCreateHandler(
 				crudCfg.ConnFn,
 				crudCfg.MutatorRepo,
-				crudCfg.TxManager,
+				newCfg.DefaultHandlerLogicConfig.TxManager,
 				newCfg.DefaultHandlerLogicConfig.OutputFactoryFn,
 				newCfg.DefaultHandlerLogicConfig.BeforeCallback, // Can be nil.
 			).Handle
@@ -97,18 +102,16 @@ func (cfg *CreateConfig[Entity]) MustValidate(
 }
 
 // CreateDefinition creates a definition for the create endpoint.
-func CreateDefinition[Entity databasetypes.CRUDEntity](
-	cfg *CRUDConfig[Entity],
-) *endpoint.DefaultDefinition {
+func CreateDefinition(cfg *CRUDConfig) *endpoint.DefaultDefinition {
 	handler := NewCreateEndpointHandler(cfg.Create, cfg.EmitterLogger)
 	return newDefinition(cfg.URL, http.MethodPost, cfg.Stack, handler)
 }
 
 // CreateHandler creates a handler for the create endpoint.
-func NewCreateEndpointHandler[Entity databasetypes.CRUDEntity](
-	cfg *CreateConfig[Entity],
+func NewCreateEndpointHandler(
+	cfg *CreateConfig,
 	emitterLogger utiltypes.EmitterLogger,
-) *endpoint.DefaultHandler[crudtypes.CreateInputer[Entity]] {
+) *endpoint.DefaultHandler[crudtypes.CreateInputer] {
 	return newHandler(
 		cfg.InputHandlerFactoryFn(),
 		cfg.HandlerLogicFnFactoryFn(),
@@ -119,22 +122,24 @@ func NewCreateEndpointHandler[Entity databasetypes.CRUDEntity](
 }
 
 // SetupCreateHandler sets up an endpoint handler for the create operation.
-func SetupCreateHandler[
-	Input crudtypes.CreateInputer[Entity],
-	Output crudtypes.CreateOutputer[Entity],
-	Entity databasetypes.CRUDEntity,
-](
+func SetupCreateHandler(
 	connFn repositorytypes.ConnFn,
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[Entity],
-	outputFactoryFn func() Output,
-	beforeCallback crudtypes.BeforeCreateCallback[Input, Entity],
-) crudtypes.CreateHandler[Entity, Input] {
+	mutatorRepo repositorytypes.MutatorRepo,
+	txManager repositorytypes.TxManager[databasetypes.Mutator],
+	outputFactoryFn func() crudtypes.CreateOutputer,
+	beforeCallback crudtypes.BeforeCreateCallback,
+) crudtypes.CreateHandler {
 	return services.NewCreateHandler(
-		func(ctx context.Context, input *Input) (Entity, error) {
+		func(
+			ctx context.Context,
+			input *crudtypes.CreateInputer,
+		) (databasetypes.Mutator, error) {
 			return (*input).GetEntity(), nil
 		},
-		func(ctx context.Context, entity Entity) (Entity, error) {
+		func(
+			ctx context.Context,
+			entity databasetypes.Mutator,
+		) (databasetypes.Mutator, error) {
 			return services.CreateInvoke(
 				ctx,
 				connFn,
@@ -143,9 +148,9 @@ func SetupCreateHandler[
 				txManager,
 			)
 		},
-		func(entity Entity) (any, error) {
+		func(entity databasetypes.Mutator) (crudtypes.CreateOutputer, error) {
 			output := outputFactoryFn()
-			output.SetEntities([]Entity{entity})
+			output.SetEntities([]databasetypes.Mutator{entity})
 			return output, nil
 		},
 		beforeCallback,

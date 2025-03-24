@@ -5,6 +5,7 @@ import (
 	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
 	"github.com/pureapi/pureapi-framework/api"
 	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
+	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
 )
 
 // CRUDOperation defines the type of CRUD operations.
@@ -24,34 +25,37 @@ type CRUDDefinitions struct {
 }
 
 // CRUDOption represents a functional option for configuring CRUDConfig.
-type CRUDOption[Entity databasetypes.CRUDEntity] func(*CRUDConfig[Entity])
+type CRUDOption func(*CRUDConfig)
 
 // DefaultCreateInputHandlerConfig holds the default configuration for the
 // create input handler.
-type DefaultCreateInputHandlerConfig[Entity databasetypes.CRUDEntity] struct {
+type DefaultCreateInputHandlerConfig struct {
 	APIFields      api.APIFields
-	InputFactoryFn func() crudtypes.CreateInputer[Entity]
+	InputFactoryFn func() crudtypes.CreateInputer
 }
 
 // DefaultCreateHandlerLogicConfig holds the default configuration for the
 // create handler logic.
-type DefaultCreateHandlerLogicConfig[Entity databasetypes.CRUDEntity] struct {
-	OutputFactoryFn func() crudtypes.CreateOutputer[Entity]
-	BeforeCallback  crudtypes.BeforeCreateCallback[crudtypes.CreateInputer[Entity], Entity]
+type DefaultCreateHandlerLogicConfig struct {
+	OutputFactoryFn func() crudtypes.CreateOutputer
+	BeforeCallback  crudtypes.BeforeCreateCallback
+	TxManager       repositorytypes.TxManager[databasetypes.Mutator]
 }
 
 // DefaultGetInputHandlerConfig holds the default configuration for the get
 // input handler.
-type DefaultGetInputHandlerConfig[Entity databasetypes.CRUDEntity] struct {
+type DefaultGetInputHandlerConfig struct {
 	APIFields      api.APIFields
-	InputFactoryFn func() crudtypes.GetInputer[Entity]
+	InputFactoryFn func() crudtypes.GetInputer
 }
 
 // DefaultGetHandlerLogicConfig holds the default configuration for the get
 // handler logic.
-type DefaultGetHandlerLogicConfig[Entity databasetypes.CRUDEntity] struct {
-	OutputFactoryFn func() crudtypes.GetOutputer[Entity]
-	BeforeCallback  crudtypes.BeforeGetCallback[crudtypes.GetInputer[Entity], Entity]
+type DefaultGetHandlerLogicConfig struct {
+	OutputFactoryFn func() crudtypes.GetOutputer
+	BeforeCallback  crudtypes.BeforeGetCallback
+	EntityFn        func(...crudtypes.EntityOption) databasetypes.Getter
+	TxManager       repositorytypes.TxManager[databasetypes.Getter]
 }
 
 // DefaultUpdateInputHandlerConfig holds the default configuration for the
@@ -65,7 +69,8 @@ type DefaultUpdateInputHandlerConfig struct {
 // update handler logic.
 type DefaultUpdateHandlerLogicConfig struct {
 	OutputFactoryFn func() crudtypes.UpdateOutputer
-	BeforeCallback  crudtypes.BeforeUpdateCallback[crudtypes.UpdateInputer]
+	BeforeCallback  crudtypes.BeforeUpdateCallback
+	EntityFn        func(...crudtypes.EntityOption) databasetypes.Mutator
 }
 
 // DefaultDeleteInputHandlerConfig holds the default configuration for the
@@ -79,5 +84,6 @@ type DefaultDeleteInputHandlerConfig struct {
 // delete handler logic.
 type DefaultDeleteHandlerLogicConfig struct {
 	OutputFactoryFn func() crudtypes.DeleteOutputer
-	BeforeCallback  crudtypes.BeforeDeleteCallback[crudtypes.DeleteInputer]
+	BeforeCallback  crudtypes.BeforeDeleteCallback
+	EntityFn        func(...crudtypes.EntityOption) databasetypes.Mutator
 }

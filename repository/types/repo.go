@@ -11,25 +11,25 @@ import (
 type ConnFn func() (types.DB, error)
 
 // GetterFactoryFn returns a Getter factory function.
-type GetterFactoryFn[Entity types.Getter] func() Entity
+type GetterFactoryFn func() types.Getter
 
 // ReaderRepo defines retrieval-related operations.
-type ReaderRepo[Entity types.Getter] interface {
+type ReaderRepo interface {
 	// GetOne retrieves a single record from the DB.
 	GetOne(
 		ctx context.Context,
 		preparer types.Preparer,
-		factoryFn GetterFactoryFn[Entity],
+		factoryFn GetterFactoryFn,
 		getOptions *GetOptions,
-	) (Entity, error)
+	) (types.Getter, error)
 
 	// GetMany retrieves multiple records from the DB.
 	GetMany(
 		ctx context.Context,
 		preparer types.Preparer,
-		factoryFn GetterFactoryFn[Entity],
+		factoryFn GetterFactoryFn,
 		getOptions *GetOptions,
-	) ([]Entity, error)
+	) ([]types.Getter, error)
 
 	// Count returns a record count.
 	Count(
@@ -37,22 +37,22 @@ type ReaderRepo[Entity types.Getter] interface {
 		preparer types.Preparer,
 		selectors dbquery.Selectors,
 		page *dbquery.Page,
-		factoryFn GetterFactoryFn[Entity],
+		factoryFn GetterFactoryFn,
 	) (int, error)
 }
 
 // MutatorRepo defines mutation-related operations.
-type MutatorRepo[Entity types.Mutator] interface {
+type MutatorRepo interface {
 	// Insert builds an insert query and executes it.
 	Insert(
-		ctx context.Context, preparer types.Preparer, mutator Entity,
-	) (Entity, error)
+		ctx context.Context, preparer types.Preparer, mutator types.Mutator,
+	) (types.Mutator, error)
 
 	// Update builds an update query and executes it.
 	Update(
 		ctx context.Context,
 		preparer types.Preparer,
-		updater Entity,
+		updater types.Mutator,
 		selectors dbquery.Selectors,
 		updates dbquery.Updates,
 	) (int64, error)
@@ -61,7 +61,7 @@ type MutatorRepo[Entity types.Mutator] interface {
 	Delete(
 		ctx context.Context,
 		preparer types.Preparer,
-		deleter Entity,
+		deleter types.Mutator,
 		selectors dbquery.Selectors,
 		deleteOpts *DeleteOptions,
 	) (int64, error)
@@ -69,7 +69,7 @@ type MutatorRepo[Entity types.Mutator] interface {
 
 // CustomRepo defines methods for executing custom SQL queries and mapping the
 // results into custom entities.
-type CustomRepo[Entity any] interface {
+type CustomRepo interface {
 	// QueryCustom executes a custom SQL query. It returns a slice of T or an
 	// error if the query or scan fails.
 	QueryCustom(
@@ -77,8 +77,8 @@ type CustomRepo[Entity any] interface {
 		preparer types.Preparer,
 		query string,
 		parameters []any,
-		factoryFn func() Entity,
-	) ([]Entity, error)
+		factoryFn func() any,
+	) ([]any, error)
 }
 
 // RawQueryer defines generic methods for executing raw queries and commands.
@@ -116,9 +116,9 @@ type RawQueryer interface {
 }
 
 // TxManager is an interface for transaction management.
-type TxManager[Entity any] interface {
+type TxManager[T any] interface {
 	// WithTransaction wraps a function call in a DB transaction.
 	WithTransaction(
-		ctx context.Context, connFn ConnFn, callback types.TxFn[Entity],
-	) (Entity, error)
+		ctx context.Context, connFn ConnFn, callback types.TxFn[T],
+	) (T, error)
 }

@@ -9,49 +9,52 @@ import (
 )
 
 // CreateInvokeFn is the function invokes the create endpoint.
-type CreateInvokeFn[Entity databasetypes.Mutator] func(
-	ctx context.Context, entity Entity,
-) (Entity, error)
+type CreateInvokeFn func(
+	ctx context.Context, entity databasetypes.Mutator,
+) (databasetypes.Mutator, error)
 
 // CreateEntityFactoryFn is the function that creates a new entity.
-type CreateEntityFactoryFn[Input any, Entity databasetypes.Mutator] func(
-	ctx context.Context, input *Input,
-) (Entity, error)
+type CreateEntityFactoryFn func(
+	ctx context.Context, input *CreateInputer,
+) (databasetypes.Mutator, error)
 
 // ToCreateOutputFn is the function that converts the entity to the endpoint
 // output.
-type ToCreateOutputFn[Entity any] func(entity Entity) (any, error)
+type ToCreateOutputFn func(entity databasetypes.Mutator) (CreateOutputer, error)
 
 // BeforeCreateCallback is the function that runs before the create operation.
 // It can be used to modify the entity before it is created.
-type BeforeCreateCallback[Input any, Entity databasetypes.Mutator] func(
-	w http.ResponseWriter, r *http.Request, entity *Entity, input *Input,
-) (Entity, error)
+type BeforeCreateCallback func(
+	w http.ResponseWriter,
+	r *http.Request,
+	entity *databasetypes.Mutator,
+	input *CreateInputer,
+) (databasetypes.Mutator, error)
 
 // GetInvokeFn is the function that invokes the get endpoint.
-type GetInvokeFn[Entity databasetypes.Getter] func(
+type GetInvokeFn func(
 	ctx context.Context,
 	parsedInput *ParsedGetEndpointInput,
-	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
-) ([]Entity, int, error)
+	entityFactoryFn repositorytypes.GetterFactoryFn,
+) ([]databasetypes.Getter, int, error)
 
 // ToGetOutputFn is the function that converts the entities to the endpoint
 // output.
-type ToGetOutputFn[Entity any, Output any] func(
-	entities []Entity, count int,
-) (Output, error)
+type ToGetOutputFn func(
+	entities []databasetypes.Getter, count int,
+) (GetOutputer, error)
 
 // BeforeGetCallback is the function that runs before the get operation.
 // It can be used to modify the parsed input before it is used.
-type BeforeGetCallback[Input any, Entity databasetypes.Getter] func(
+type BeforeGetCallback func(
 	w http.ResponseWriter,
 	r *http.Request,
 	parsedInput *ParsedGetEndpointInput,
-	input *Input,
+	input *GetInputer,
 ) (*ParsedGetEndpointInput, error)
 
 // UpdateInvokeFn is the function that invokes the update endpoint.
-type ToUpdateOutputFn func(count int64) (any, error)
+type ToUpdateOutputFn func(count int64) (UpdateOutputer, error)
 
 // UpdateEntityFactoryFn is the function that creates a new entity.
 type UpdateEntityFactoryFn func() databasetypes.Mutator
@@ -65,16 +68,16 @@ type UpdateInvokeFn func(
 
 // BeforeUpdateCallback is the function that runs before the update operation.
 // It can be used to modify the parsed input and entity before they are used.
-type BeforeUpdateCallback[Input any] func(
+type BeforeUpdateCallback func(
 	w http.ResponseWriter,
 	r *http.Request,
 	parsedInput *ParsedUpdateEndpointInput,
 	entity databasetypes.Mutator,
-	input *Input,
+	input *UpdateInputer,
 ) (*ParsedUpdateEndpointInput, databasetypes.Mutator, error)
 
 // DeleteInvokeFn is the function that invokes the delete endpoint.
-type ToDeleteOutputFn func(count int64) (any, error)
+type ToDeleteOutputFn func(count int64) (DeleteOutputer, error)
 
 // DeleteEntityFactoryFn is the function that creates a new entity.
 type DeleteEntityFactoryFn func() databasetypes.Mutator
@@ -88,10 +91,10 @@ type DeleteInvokeFn func(
 
 // BeforeDeleteCallback is the function that runs before the delete operation.
 // It can be used to modify the parsed input and entity before they are used.
-type BeforeDeleteCallback[Input any] func(
+type BeforeDeleteCallback func(
 	w http.ResponseWriter,
 	r *http.Request,
 	parsedInput *ParsedDeleteEndpointInput,
 	entity databasetypes.Mutator,
-	input *Input,
+	input *DeleteInputer,
 ) (*ParsedDeleteEndpointInput, databasetypes.Mutator, error)

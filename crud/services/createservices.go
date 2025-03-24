@@ -21,28 +21,30 @@ import (
 // Returns:
 //   - Entity: The created entity.
 //   - error: Any error that occurred during the operation.
-func CreateInvoke[Entity databasetypes.Mutator](
+func CreateInvoke(
 	ctx context.Context,
 	connFn repositorytypes.ConnFn,
-	entity Entity,
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[Entity],
-) (Entity, error) {
+	entity databasetypes.Mutator,
+	mutatorRepo repositorytypes.MutatorRepo,
+	txManager repositorytypes.TxManager[databasetypes.Mutator],
+) (databasetypes.Mutator, error) {
 	return txManager.WithTransaction(
 		ctx,
 		connFn,
-		func(ctx context.Context, tx databasetypes.Tx) (Entity, error) {
+		func(
+			ctx context.Context, tx databasetypes.Tx,
+		) (databasetypes.Mutator, error) {
 			return mutatorRepo.Insert(ctx, tx, entity)
 		},
 	)
 }
 
 // CreateHandler is the handler implementation for the create endpoint.
-type CreateHandler[Entity databasetypes.Mutator, Input any] struct {
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Input, Entity]
-	createInvokeFn  crudtypes.CreateInvokeFn[Entity]
-	toOutputFn      crudtypes.ToCreateOutputFn[Entity]
-	beforeCallback  crudtypes.BeforeCreateCallback[Input, Entity]
+type CreateHandler struct {
+	entityFactoryFn crudtypes.CreateEntityFactoryFn
+	createInvokeFn  crudtypes.CreateInvokeFn
+	toOutputFn      crudtypes.ToCreateOutputFn
+	beforeCallback  crudtypes.BeforeCreateCallback
 }
 
 // NewCreateHandler creates a new create handler.
@@ -56,13 +58,13 @@ type CreateHandler[Entity databasetypes.Mutator, Input any] struct {
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func NewCreateHandler[Entity databasetypes.Mutator, Input any](
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Input, Entity],
-	createInvokeFn crudtypes.CreateInvokeFn[Entity],
-	toOutputFn crudtypes.ToCreateOutputFn[Entity],
-	beforeCallback crudtypes.BeforeCreateCallback[Input, Entity],
-) *CreateHandler[Entity, Input] {
-	return &CreateHandler[Entity, Input]{
+func NewCreateHandler(
+	entityFactoryFn crudtypes.CreateEntityFactoryFn,
+	createInvokeFn crudtypes.CreateInvokeFn,
+	toOutputFn crudtypes.ToCreateOutputFn,
+	beforeCallback crudtypes.BeforeCreateCallback,
+) *CreateHandler {
+	return &CreateHandler{
 		entityFactoryFn: entityFactoryFn,
 		createInvokeFn:  createInvokeFn,
 		toOutputFn:      toOutputFn,
@@ -80,8 +82,8 @@ func NewCreateHandler[Entity databasetypes.Mutator, Input any](
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
-func (h *CreateHandler[Mutator, Input]) Handle(
-	w http.ResponseWriter, r *http.Request, i *Input,
+func (h *CreateHandler) Handle(
+	w http.ResponseWriter, r *http.Request, i *crudtypes.CreateInputer,
 ) (any, error) {
 	entity, err := h.entityFactoryFn(r.Context(), i)
 	if err != nil {
@@ -108,9 +110,9 @@ func (h *CreateHandler[Mutator, Input]) Handle(
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func (h *CreateHandler[Mutator, Input]) WithEntityFactoryFn(
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Input, Mutator],
-) *CreateHandler[Mutator, Input] {
+func (h *CreateHandler) WithEntityFactoryFn(
+	entityFactoryFn crudtypes.CreateEntityFactoryFn,
+) *CreateHandler {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
 	return &new
@@ -124,9 +126,9 @@ func (h *CreateHandler[Mutator, Input]) WithEntityFactoryFn(
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func (h *CreateHandler[Mutator, Input]) WithCreateInvokeFn(
-	createInvokeFn crudtypes.CreateInvokeFn[Mutator],
-) *CreateHandler[Mutator, Input] {
+func (h *CreateHandler) WithCreateInvokeFn(
+	createInvokeFn crudtypes.CreateInvokeFn,
+) *CreateHandler {
 	new := *h
 	new.createInvokeFn = createInvokeFn
 	return &new
@@ -139,9 +141,9 @@ func (h *CreateHandler[Mutator, Input]) WithCreateInvokeFn(
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func (h *CreateHandler[Mutator, Input]) WithToOutputFn(
-	toOutputFn crudtypes.ToCreateOutputFn[Mutator],
-) *CreateHandler[Mutator, Input] {
+func (h *CreateHandler) WithToOutputFn(
+	toOutputFn crudtypes.ToCreateOutputFn,
+) *CreateHandler {
 	new := *h
 	new.toOutputFn = toOutputFn
 	return &new
@@ -154,9 +156,9 @@ func (h *CreateHandler[Mutator, Input]) WithToOutputFn(
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func (h *CreateHandler[Mutator, Input]) WithBeforeCallback(
-	beforeCallback crudtypes.BeforeCreateCallback[Input, Mutator],
-) *CreateHandler[Mutator, Input] {
+func (h *CreateHandler) WithBeforeCallback(
+	beforeCallback crudtypes.BeforeCreateCallback,
+) *CreateHandler {
 	new := *h
 	new.beforeCallback = beforeCallback
 	return &new

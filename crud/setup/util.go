@@ -1,7 +1,6 @@
 package setup
 
 import (
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
 	"github.com/pureapi/pureapi-core/endpoint"
 	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
 	utiltypes "github.com/pureapi/pureapi-core/util/types"
@@ -23,8 +22,8 @@ func withDefaultFactory[T any](
 
 // defaultErrorHandlerFactory returns a default error handler factory that
 // adds generic errors along with the additionalErrors.
-func defaultErrorHandlerFactory[Entity databasetypes.CRUDEntity](
-	crudCfg *CRUDConfig[Entity],
+func defaultErrorHandlerFactory(
+	crudCfg *CRUDConfig,
 	additionalErrors api.ExpectedErrors,
 ) func() endpointtypes.ErrorHandler {
 	return func() endpointtypes.ErrorHandler {
@@ -38,8 +37,8 @@ func defaultErrorHandlerFactory[Entity databasetypes.CRUDEntity](
 }
 
 // defaultOutputHandlerFactory returns a default output handler factory.
-func defaultOutputHandlerFactory[Entity databasetypes.CRUDEntity](
-	crudCfg *CRUDConfig[Entity],
+func defaultOutputHandlerFactory(
+	crudCfg *CRUDConfig,
 ) func() endpointtypes.OutputHandler {
 	return func() endpointtypes.OutputHandler {
 		return json.NewJSONOutput(crudCfg.EmitterLogger, crudCfg.SystemID)

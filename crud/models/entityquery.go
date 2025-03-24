@@ -11,13 +11,13 @@ import (
 )
 
 // EntityQuery represents a query for an entity.
-type EntityQuery[Entity databasetypes.CRUDEntity] struct {
+type EntityQuery struct {
 	tableName      string
-	entityFn       func() Entity
-	optionEntityFn crudtypes.OptionEntityFn[Entity]
+	entityFn       func() databasetypes.CRUDEntity
+	optionEntityFn crudtypes.OptionEntityFn
 	selectors      dbquery.Selectors
 	updates        dbquery.Updates
-	options        []crudtypes.EntityOption[databasetypes.CRUDEntity]
+	options        []crudtypes.EntityOption
 }
 
 // NewQuery creates a new NewEntityQuery for an entity.
@@ -30,18 +30,18 @@ type EntityQuery[Entity databasetypes.CRUDEntity] struct {
 //
 // Returns:
 //   - *EntityQuery: The new EntityQuery.
-func NewEntityQuery[Entity databasetypes.CRUDEntity](
+func NewEntityQuery(
 	tableName string,
-	entityFn func() Entity,
-	optionEntityFn crudtypes.OptionEntityFn[Entity],
-) *EntityQuery[Entity] {
-	return &EntityQuery[Entity]{
+	entityFn func() databasetypes.CRUDEntity,
+	optionEntityFn crudtypes.OptionEntityFn,
+) *EntityQuery {
+	return &EntityQuery{
 		tableName:      tableName,
 		entityFn:       entityFn,
 		optionEntityFn: optionEntityFn,
 		selectors:      dbquery.Selectors{},
 		updates:        dbquery.Updates{},
-		options:        []crudtypes.EntityOption[databasetypes.CRUDEntity]{},
+		options:        []crudtypes.EntityOption{},
 	}
 }
 
@@ -54,9 +54,9 @@ func NewEntityQuery[Entity databasetypes.CRUDEntity](
 //
 // Returns:
 //   - *EntityQuery: The updated EntityQuery.
-func (q *EntityQuery[Entity]) AddSelector(
+func (q *EntityQuery) AddSelector(
 	field string, predicate dbquery.Predicate, value any,
-) *EntityQuery[Entity] {
+) *EntityQuery {
 	entity := q.entityFn()
 	selector := MustGetSelector(
 		q.tableName, entity, field, predicate, value,
@@ -69,7 +69,7 @@ func (q *EntityQuery[Entity]) AddSelector(
 //
 // Returns:
 //   - types.Selectors: The current selectors.
-func (q *EntityQuery[Entity]) Selectors() dbquery.Selectors {
+func (q *EntityQuery) Selectors() dbquery.Selectors {
 	return q.selectors
 }
 
@@ -81,9 +81,7 @@ func (q *EntityQuery[Entity]) Selectors() dbquery.Selectors {
 //
 // Returns:
 //   - *EntityQuery: The updated EntityQuery.
-func (q *EntityQuery[Entity]) AddUpdate(
-	field string, value any,
-) *EntityQuery[Entity] {
+func (q *EntityQuery) AddUpdate(field string, value any) *EntityQuery {
 	q.updates = append(
 		q.updates,
 		*MustGetUpdate(q.entityFn(), field, value),
@@ -95,7 +93,7 @@ func (q *EntityQuery[Entity]) AddUpdate(
 //
 // Returns:
 //   - types.Updates: The current updates.
-func (q *EntityQuery[Entity]) Updates() dbquery.Updates {
+func (q *EntityQuery) Updates() dbquery.Updates {
 	return q.updates
 }
 
@@ -107,11 +105,11 @@ func (q *EntityQuery[Entity]) Updates() dbquery.Updates {
 //
 // Returns:
 //   - crud.EntityOption[Entity]: The entity-specific option.
-func (q *EntityQuery[Entity]) AddOption(
+func (q *EntityQuery) AddOption(
 	field string, value any,
-) *EntityQuery[Entity] {
+) *EntityQuery {
 	q.options = append(
-		q.options, WithOption[databasetypes.CRUDEntity](field, value),
+		q.options, WithOption(field, value),
 	)
 	return q
 }
@@ -120,10 +118,10 @@ func (q *EntityQuery[Entity]) AddOption(
 //
 // Returns:
 //   - Entity: The entity that is being queried.
-func (q *EntityQuery[Entity]) Entity() Entity {
-	var entityOpts []crudtypes.EntityOption[Entity]
+func (q *EntityQuery) Entity() databasetypes.CRUDEntity {
+	var entityOpts []crudtypes.EntityOption
 	for _, opt := range q.options {
-		entityOpts = append(entityOpts, func(e Entity) {
+		entityOpts = append(entityOpts, func(e databasetypes.CRUDEntity) {
 			opt(e)
 		})
 	}
@@ -212,10 +210,10 @@ func MustGetUpdate(
 //
 // Returns:
 //   - EntityOption[Entity]: The entity-specific option.
-func WithOption[Entity any](
+func WithOption(
 	field string, value any,
-) crudtypes.EntityOption[Entity] {
-	return func(t Entity) {
+) crudtypes.EntityOption {
+	return func(t databasetypes.CRUDEntity) {
 		v := reflect.ValueOf(t).Elem()
 		typ := v.Type()
 		// Ensure we're working on the underlying struct.

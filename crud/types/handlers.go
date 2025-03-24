@@ -2,26 +2,30 @@ package types
 
 import (
 	"net/http"
-
-	"github.com/pureapi/pureapi-core/database/types"
 )
 
 // CreateHandler is the handler interface for the create endpoint.
-type CreateHandler[Entity types.Mutator, Input any] interface {
-	Handle(w http.ResponseWriter, r *http.Request, i *Input) (any, error)
+type CreateHandler interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i *CreateInputer,
+	) (any, error)
 }
 
 // GetHandler is the handler interface for the get endpoint.
-type GetHandler[Entity types.Getter, Input any, Output any] interface {
-	Handle(w http.ResponseWriter, r *http.Request, i *Input) (any, error)
+type GetHandler interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i *GetInputer,
+	) (any, error)
 }
 
 // UpdateHandler is the handler interface for the update endpoint.
-type UpdateHandler[Input any] interface {
-	Handle(w http.ResponseWriter, r *http.Request, i *Input) (any, error)
+type UpdateHandler interface {
+	Handle(w http.ResponseWriter, r *http.Request, i *UpdateInputer) (any, error)
 }
 
 // DeleteHandler is the handler interface for the delete endpoint.
-type DeleteHandler[Input any] interface {
-	Handle(w http.ResponseWriter, r *http.Request, i *Input) (any, error)
+type DeleteHandler interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i *DeleteInputer,
+	) (any, error)
 }

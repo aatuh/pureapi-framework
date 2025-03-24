@@ -67,7 +67,7 @@ func UpdateInvoke(
 	parsedInput *crudtypes.ParsedUpdateEndpointInput,
 	connFn repositorytypes.ConnFn,
 	entity databasetypes.Mutator,
-	mutatorRepo repositorytypes.MutatorRepo[databasetypes.Mutator],
+	mutatorRepo repositorytypes.MutatorRepo,
 	txManager repositorytypes.TxManager[*int64],
 ) (int64, error) {
 	count, err := txManager.WithTransaction(
@@ -86,12 +86,14 @@ func UpdateInvoke(
 }
 
 // UpdateHandler is the handler implementation for the update endpoint.
-type UpdateHandler[Input any] struct {
-	parseInputFn    func(input *Input) (*crudtypes.ParsedUpdateEndpointInput, error)
+type UpdateHandler struct {
+	parseInputFn func(
+		input *crudtypes.UpdateInputer,
+	) (*crudtypes.ParsedUpdateEndpointInput, error)
 	updateInvokeFn  crudtypes.UpdateInvokeFn
 	toOutputFn      crudtypes.ToUpdateOutputFn
 	entityFactoryFn crudtypes.UpdateEntityFactoryFn
-	beforeCallback  crudtypes.BeforeUpdateCallback[Input]
+	beforeCallback  crudtypes.BeforeUpdateCallback
 }
 
 // NewUpdateHandler creates a new update handler.
@@ -107,14 +109,16 @@ type UpdateHandler[Input any] struct {
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func NewUpdateHandler[Input any](
-	parseInputFn func(input *Input) (*crudtypes.ParsedUpdateEndpointInput, error),
+func NewUpdateHandler(
+	parseInputFn func(
+		input *crudtypes.UpdateInputer,
+	) (*crudtypes.ParsedUpdateEndpointInput, error),
 	updateInvokeFn crudtypes.UpdateInvokeFn,
 	toOutputFn crudtypes.ToUpdateOutputFn,
 	entityFactoryFn crudtypes.UpdateEntityFactoryFn,
-	beforeCallback crudtypes.BeforeUpdateCallback[Input],
-) *UpdateHandler[Input] {
-	return &UpdateHandler[Input]{
+	beforeCallback crudtypes.BeforeUpdateCallback,
+) *UpdateHandler {
+	return &UpdateHandler{
 		parseInputFn:    parseInputFn,
 		updateInvokeFn:  updateInvokeFn,
 		toOutputFn:      toOutputFn,
@@ -133,8 +137,8 @@ func NewUpdateHandler[Input any](
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
-func (h *UpdateHandler[Input]) Handle(
-	w http.ResponseWriter, r *http.Request, i *Input,
+func (h *UpdateHandler) Handle(
+	w http.ResponseWriter, r *http.Request, i *crudtypes.UpdateInputer,
 ) (any, error) {
 	parsedInput, err := h.parseInputFn(i)
 	if err != nil {
@@ -163,9 +167,10 @@ func (h *UpdateHandler[Input]) Handle(
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func (h *UpdateHandler[Input]) WithParseInputFn(
-	parseInputFn func(input *Input) (*crudtypes.ParsedUpdateEndpointInput, error),
-) *UpdateHandler[Input] {
+func (h *UpdateHandler) WithParseInputFn(
+	parseInputFn func(input *crudtypes.UpdateInputer,
+	) (*crudtypes.ParsedUpdateEndpointInput, error),
+) *UpdateHandler {
 	new := *h
 	new.parseInputFn = parseInputFn
 	return &new
@@ -179,9 +184,9 @@ func (h *UpdateHandler[Input]) WithParseInputFn(
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func (h *UpdateHandler[Input]) WithUpdateInvokeFn(
+func (h *UpdateHandler) WithUpdateInvokeFn(
 	updateInvokeFn crudtypes.UpdateInvokeFn,
-) *UpdateHandler[Input] {
+) *UpdateHandler {
 	new := *h
 	new.updateInvokeFn = updateInvokeFn
 	return &new
@@ -195,9 +200,9 @@ func (h *UpdateHandler[Input]) WithUpdateInvokeFn(
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func (h *UpdateHandler[Input]) WithToOutputFn(
+func (h *UpdateHandler) WithToOutputFn(
 	toOutputFn crudtypes.ToUpdateOutputFn,
-) *UpdateHandler[Input] {
+) *UpdateHandler {
 	new := *h
 	new.toOutputFn = toOutputFn
 	return &new
@@ -211,9 +216,9 @@ func (h *UpdateHandler[Input]) WithToOutputFn(
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func (h *UpdateHandler[Input]) WithEntityFactoryFn(
+func (h *UpdateHandler) WithEntityFactoryFn(
 	entityFactoryFn crudtypes.UpdateEntityFactoryFn,
-) *UpdateHandler[Input] {
+) *UpdateHandler {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
 	return &new
@@ -227,9 +232,9 @@ func (h *UpdateHandler[Input]) WithEntityFactoryFn(
 //
 // Returns:
 //   - *UpdateHandler: The new update handler.
-func (h *UpdateHandler[Input]) WithBeforeUpdateCallback(
-	beforeCallback crudtypes.BeforeUpdateCallback[Input],
-) *UpdateHandler[Input] {
+func (h *UpdateHandler) WithBeforeUpdateCallback(
+	beforeCallback crudtypes.BeforeUpdateCallback,
+) *UpdateHandler {
 	new := *h
 	new.beforeCallback = beforeCallback
 	return &new

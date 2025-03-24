@@ -3,7 +3,6 @@ package defaults
 import (
 	"fmt"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
 	"github.com/pureapi/pureapi-framework/custom"
 	"github.com/pureapi/pureapi-framework/repository"
 	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
@@ -38,19 +37,15 @@ func DefaultCustomRules() map[string]func(any) error {
 }
 
 // DefaultMutatorRepo returns a new DefaultMutatorRepo.
-func DefaultMutatorRepo[
-	Entity databasetypes.CRUDEntity,
-]() repositorytypes.MutatorRepo[Entity] {
-	return repository.NewMutatorRepo[Entity](
+func DefaultMutatorRepo() repositorytypes.MutatorRepo {
+	return repository.NewMutatorRepo(
 		custom.QueryBuilder(), custom.QueryErrorChecker(),
 	)
 }
 
 // DefaultReaderRepo returns a new DefaultReaderRepo.
-func DefaultReaderRepo[
-	Entity databasetypes.CRUDEntity,
-]() repositorytypes.ReaderRepo[Entity] {
-	return repository.NewReaderRepo[Entity](
+func DefaultReaderRepo() repositorytypes.ReaderRepo {
+	return repository.NewReaderRepo(
 		custom.QueryBuilder(), custom.QueryErrorChecker(),
 	)
 }

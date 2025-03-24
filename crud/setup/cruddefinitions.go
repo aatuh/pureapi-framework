@@ -1,7 +1,6 @@
 package setup
 
 import (
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
 	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
 	utiltypes "github.com/pureapi/pureapi-core/util/types"
 	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
@@ -11,32 +10,30 @@ import (
 )
 
 // CRUDConfig holds all the settings for the CRUD endpoints.
-type CRUDConfig[Entity databasetypes.CRUDEntity] struct {
+type CRUDConfig struct {
 	SystemID      string
 	URL           string
 	Stack         endpointtypes.Stack
 	EmitterLogger utiltypes.EmitterLogger
 
-	EntityFn      func(...crudtypes.EntityOption[Entity]) Entity
 	ConnFn        repositorytypes.ConnFn
 	APIToDBFields crudtypes.APIToDBFields
 
-	MutatorRepo repositorytypes.MutatorRepo[Entity]
-	ReaderRepo  repositorytypes.ReaderRepo[Entity]
-	TxManager   repositorytypes.TxManager[Entity]
+	MutatorRepo repositorytypes.MutatorRepo
+	ReaderRepo  repositorytypes.ReaderRepo
 
 	ConversionRules map[string]func(any) any
 	CustomRules     map[string]func(any) error
 
-	Create *CreateConfig[Entity]
-	Get    *GetConfig[Entity]
-	Update *UpdateConfig[Entity]
-	Delete *DeleteConfig[Entity]
+	Create *CreateConfig
+	Get    *GetConfig
+	Update *UpdateConfig
+	Delete *DeleteConfig
 }
 
 // NewCRUDDefinitions creates endpoint definitions based on the enabled ops.
-func NewCRUDDefinitions[Entity databasetypes.CRUDEntity](
-	cfg *CRUDConfig[Entity],
+func NewCRUDDefinitions(
+	cfg *CRUDConfig,
 ) *CRUDDefinitions {
 	validCfg := MustValidateCRUDConfig(cfg)
 	defs := &CRUDDefinitions{
@@ -58,9 +55,9 @@ func NewCRUDDefinitions[Entity databasetypes.CRUDEntity](
 }
 
 // MustValidateCRUDConfig validates the config and sets defaults.
-func MustValidateCRUDConfig[Entity databasetypes.CRUDEntity](
-	cfg *CRUDConfig[Entity],
-) *CRUDConfig[Entity] {
+func MustValidateCRUDConfig(
+	cfg *CRUDConfig,
+) *CRUDConfig {
 	if cfg == nil {
 		panic("CRUDConfig is required")
 	}
@@ -76,34 +73,28 @@ func MustValidateCRUDConfig[Entity databasetypes.CRUDEntity](
 
 // MustValidateMainCRUDConfig validates the main config and sets defaults
 // It returns a new config with the defaults set.
-func MustValidateMainCRUDConfig[Entity databasetypes.CRUDEntity](
-	cfg *CRUDConfig[Entity],
-) *CRUDConfig[Entity] {
+func MustValidateMainCRUDConfig(
+	cfg *CRUDConfig,
+) *CRUDConfig {
 	newCfg := *cfg
 
 	if newCfg.SystemID == "" {
-		panic("SystemID is required")
+		panic("MustValidateMainCRUDConfig: SystemID is required in CRUDConfig")
 	}
 	if newCfg.URL == "" {
-		panic("URL is required")
+		panic("MustValidateMainCRUDConfig: URL is required in CRUDConfig")
 	}
 	if newCfg.Stack == nil {
 		newCfg.Stack = defaults.DefaultStackBuilder().Build()
 	}
-	if newCfg.EntityFn == nil {
-		panic("EntityFn is required")
-	}
 	if newCfg.ConnFn == nil {
-		panic("ConnFn is required")
+		panic("MustValidateMainCRUDConfig: ConnFn is required in CRUDConfig")
 	}
 	if newCfg.MutatorRepo == nil {
-		newCfg.MutatorRepo = defaults.DefaultMutatorRepo[Entity]()
+		newCfg.MutatorRepo = defaults.DefaultMutatorRepo()
 	}
 	if newCfg.ReaderRepo == nil {
-		newCfg.ReaderRepo = defaults.DefaultReaderRepo[Entity]()
-	}
-	if newCfg.TxManager == nil {
-		newCfg.TxManager = defaults.DefaultTxManager[Entity]()
+		newCfg.ReaderRepo = defaults.DefaultReaderRepo()
 	}
 	if newCfg.EmitterLogger == nil {
 		newCfg.EmitterLogger = custom.EmitterLogger()

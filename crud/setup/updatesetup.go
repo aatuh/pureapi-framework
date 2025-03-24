@@ -20,7 +20,7 @@ import (
 )
 
 // UpdateConfig holds the configuration for the update endpoint.
-type UpdateConfig[Entity databasetypes.CRUDEntity] struct {
+type UpdateConfig struct {
 	// Default config for the update input handler.
 	DefaultInputHandlerConfig *DefaultUpdateInputHandlerConfig
 	// Override for the update input handler.
@@ -37,9 +37,9 @@ type UpdateConfig[Entity databasetypes.CRUDEntity] struct {
 
 // MustValidate validates and sets defaults for the update config.
 // It returns a new config with the defaults set.
-func (cfg *UpdateConfig[Entity]) MustValidate(
-	crudCfg *CRUDConfig[Entity],
-) *UpdateConfig[Entity] {
+func (cfg *UpdateConfig) MustValidate(
+	crudCfg *CRUDConfig,
+) *UpdateConfig {
 	newCfg := *cfg
 
 	if newCfg.DefaultInputHandlerConfig == nil {
@@ -65,12 +65,18 @@ func (cfg *UpdateConfig[Entity]) MustValidate(
 		},
 	)
 
-	if newCfg.DefaultHandlerLogicConfig == nil {
-		newCfg.DefaultHandlerLogicConfig = &DefaultUpdateHandlerLogicConfig{}
-	}
-	if newCfg.DefaultHandlerLogicConfig.OutputFactoryFn == nil {
-		newCfg.DefaultHandlerLogicConfig.OutputFactoryFn = func() crudtypes.UpdateOutputer {
-			return NewUpdateOutput()
+	// If override is not set, validate and use default handler logic.
+	if newCfg.HandlerLogicFnFactoryFn == nil {
+		if newCfg.DefaultHandlerLogicConfig == nil {
+			newCfg.DefaultHandlerLogicConfig = &DefaultUpdateHandlerLogicConfig{}
+		}
+		if newCfg.DefaultHandlerLogicConfig.OutputFactoryFn == nil {
+			newCfg.DefaultHandlerLogicConfig.OutputFactoryFn = func() crudtypes.UpdateOutputer {
+				return NewUpdateOutput()
+			}
+		}
+		if newCfg.DefaultHandlerLogicConfig.EntityFn == nil {
+			panic("MustValidate: EntityFn is required in UpdateConfig")
 		}
 	}
 	newCfg.HandlerLogicFnFactoryFn = withDefaultFactory(
@@ -78,11 +84,11 @@ func (cfg *UpdateConfig[Entity]) MustValidate(
 		func() endpoint.HandlerLogicFn[crudtypes.UpdateInputer] {
 			return SetupUpdateHandler(
 				crudCfg.ConnFn,
-				crudCfg.EntityFn,
+				newCfg.DefaultHandlerLogicConfig.EntityFn,
 				crudCfg.APIToDBFields,
 				newCfg.DefaultHandlerLogicConfig.OutputFactoryFn,
 				newCfg.DefaultHandlerLogicConfig.BeforeCallback, // Can be nil.
-				repository.NewMutatorRepo[databasetypes.Mutator](
+				repository.NewMutatorRepo(
 					custom.QueryBuilder(), custom.QueryErrorChecker(),
 				),
 				defaults.DefaultTxManager[*int64](),
@@ -103,16 +109,14 @@ func (cfg *UpdateConfig[Entity]) MustValidate(
 }
 
 // UpdateDefinition creates a definition for the update endpoint.
-func UpdateDefinition[Entity databasetypes.CRUDEntity](
-	cfg *CRUDConfig[Entity],
-) *endpoint.DefaultDefinition {
-	handler := NewUpdateEndpointHandler[Entity](cfg.Update, cfg.EmitterLogger)
+func UpdateDefinition(cfg *CRUDConfig) *endpoint.DefaultDefinition {
+	handler := NewUpdateEndpointHandler(cfg.Update, cfg.EmitterLogger)
 	return newDefinition(cfg.URL, http.MethodPut, cfg.Stack, handler)
 }
 
 // UpdateHandler creates a handler for the update endpoint.
-func NewUpdateEndpointHandler[Entity databasetypes.CRUDEntity](
-	cfg *UpdateConfig[Entity],
+func NewUpdateEndpointHandler(
+	cfg *UpdateConfig,
 	emitterLogger utiltypes.EmitterLogger,
 ) *endpoint.DefaultHandler[crudtypes.UpdateInputer] {
 	return newHandler(
@@ -149,21 +153,19 @@ func NewUpdateOutput() *UpdateOutput {
 func (u *UpdateOutput) SetCount(count int64) { u.Count = count }
 
 // SetupUpdateHandler sets up an endpoint handler for the update operation.
-func SetupUpdateHandler[
-	Entity databasetypes.CRUDEntity,
-	Input crudtypes.UpdateInputer,
-	Output crudtypes.UpdateOutputer,
-](
+func SetupUpdateHandler(
 	connFn repositorytypes.ConnFn,
-	entityFn func(opts ...crudtypes.EntityOption[Entity]) Entity,
+	entityFn func(opts ...crudtypes.EntityOption) databasetypes.Mutator,
 	apiToDBFields crudtypes.APIToDBFields,
-	outputFactoryFn func() Output,
-	beforeCallback crudtypes.BeforeUpdateCallback[Input],
-	mutatorRepo repositorytypes.MutatorRepo[databasetypes.Mutator],
+	outputFactoryFn func() crudtypes.UpdateOutputer,
+	beforeCallback crudtypes.BeforeUpdateCallback,
+	mutatorRepo repositorytypes.MutatorRepo,
 	txManager repositorytypes.TxManager[*int64],
-) crudtypes.UpdateHandler[Input] {
+) crudtypes.UpdateHandler {
 	return services.NewUpdateHandler(
-		func(input *Input) (*crudtypes.ParsedUpdateEndpointInput, error) {
+		func(
+			input *crudtypes.UpdateInputer,
+		) (*crudtypes.ParsedUpdateEndpointInput, error) {
 			i := *input
 			return services.ParseUpdateInput(
 				apiToDBFields,
@@ -186,7 +188,7 @@ func SetupUpdateHandler[
 				txManager,
 			)
 		},
-		func(count int64) (any, error) {
+		func(count int64) (crudtypes.UpdateOutputer, error) {
 			output := outputFactoryFn()
 			output.SetCount(count)
 			return output, nil

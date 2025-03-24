@@ -63,14 +63,14 @@ func ParseGetInput(
 // Returns:
 //   - []Entity: The entities.
 //   - error: Any error that occurred during the operation.
-func GetInvoke[Getter databasetypes.Getter](
+func GetInvoke(
 	ctx context.Context,
 	parsedInput *crudtypes.ParsedGetEndpointInput,
 	connFn repositorytypes.ConnFn,
-	entityFactoryFn repositorytypes.GetterFactoryFn[Getter],
-	readerRepo repositorytypes.ReaderRepo[Getter],
-	_ repositorytypes.TxManager[Getter],
-) ([]Getter, int, error) {
+	entityFactoryFn repositorytypes.GetterFactoryFn,
+	readerRepo repositorytypes.ReaderRepo,
+	_ repositorytypes.TxManager[databasetypes.Getter],
+) ([]databasetypes.Getter, int, error) {
 	conn, err := connFn()
 	if err != nil {
 		return nil, 0, err
@@ -105,12 +105,12 @@ func GetInvoke[Getter databasetypes.Getter](
 }
 
 // GetHandler is the handler for the get endpoint.
-type GetHandler[Entity databasetypes.Getter, Input any, Output any] struct {
-	parseInputFn    func(input *Input) (*crudtypes.ParsedGetEndpointInput, error)
-	getInvokeFn     crudtypes.GetInvokeFn[Entity]
-	toOutputFn      crudtypes.ToGetOutputFn[Entity, Output]
-	entityFactoryFn repositorytypes.GetterFactoryFn[Entity]
-	beforeCallback  crudtypes.BeforeGetCallback[Input, Entity]
+type GetHandler struct {
+	parseInputFn    func(input *crudtypes.GetInputer) (*crudtypes.ParsedGetEndpointInput, error)
+	getInvokeFn     crudtypes.GetInvokeFn
+	toOutputFn      crudtypes.ToGetOutputFn
+	entityFactoryFn repositorytypes.GetterFactoryFn
+	beforeCallback  crudtypes.BeforeGetCallback
 }
 
 // NewGetHandler creates a new get handler.
@@ -125,14 +125,16 @@ type GetHandler[Entity databasetypes.Getter, Input any, Output any] struct {
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func NewGetHandler[Entity databasetypes.Getter, Input any, Output any](
-	parseInputFn func(input *Input) (*crudtypes.ParsedGetEndpointInput, error),
-	getInvokeFn crudtypes.GetInvokeFn[Entity],
-	toOutputFn crudtypes.ToGetOutputFn[Entity, Output],
-	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
-	beforeCallback crudtypes.BeforeGetCallback[Input, Entity],
-) *GetHandler[Entity, Input, Output] {
-	return &GetHandler[Entity, Input, Output]{
+func NewGetHandler(
+	parseInputFn func(
+		input *crudtypes.GetInputer,
+	) (*crudtypes.ParsedGetEndpointInput, error),
+	getInvokeFn crudtypes.GetInvokeFn,
+	toOutputFn crudtypes.ToGetOutputFn,
+	entityFactoryFn repositorytypes.GetterFactoryFn,
+	beforeCallback crudtypes.BeforeGetCallback,
+) *GetHandler {
+	return &GetHandler{
 		parseInputFn:    parseInputFn,
 		getInvokeFn:     getInvokeFn,
 		toOutputFn:      toOutputFn,
@@ -151,8 +153,8 @@ func NewGetHandler[Entity databasetypes.Getter, Input any, Output any](
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
-func (h *GetHandler[Entity, Input, Output]) Handle(
-	w http.ResponseWriter, r *http.Request, i *Input,
+func (h *GetHandler) Handle(
+	w http.ResponseWriter, r *http.Request, i *crudtypes.GetInputer,
 ) (any, error) {
 	parsedInput, err := h.parseInputFn(i)
 	if err != nil {
@@ -180,9 +182,9 @@ func (h *GetHandler[Entity, Input, Output]) Handle(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler[Entity, Input, Output]) WithParseInputFn(
-	parseInputFn func(input *Input) (*crudtypes.ParsedGetEndpointInput, error),
-) *GetHandler[Entity, Input, Output] {
+func (h *GetHandler) WithParseInputFn(
+	parseInputFn func(input *crudtypes.GetInputer) (*crudtypes.ParsedGetEndpointInput, error),
+) *GetHandler {
 	new := *h
 	new.parseInputFn = parseInputFn
 	return &new
@@ -195,9 +197,9 @@ func (h *GetHandler[Entity, Input, Output]) WithParseInputFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler[Entity, Input, Output]) WithGetInvokeFn(
-	getInvokeFn crudtypes.GetInvokeFn[Entity],
-) *GetHandler[Entity, Input, Output] {
+func (h *GetHandler) WithGetInvokeFn(
+	getInvokeFn crudtypes.GetInvokeFn,
+) *GetHandler {
 	new := *h
 	new.getInvokeFn = getInvokeFn
 	return &new
@@ -211,9 +213,9 @@ func (h *GetHandler[Entity, Input, Output]) WithGetInvokeFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler[Entity, Input, Output]) WithToOutputFn(
-	toOutputFn crudtypes.ToGetOutputFn[Entity, Output],
-) *GetHandler[Entity, Input, Output] {
+func (h *GetHandler) WithToOutputFn(
+	toOutputFn crudtypes.ToGetOutputFn,
+) *GetHandler {
 	new := *h
 	new.toOutputFn = toOutputFn
 	return &new
@@ -227,9 +229,9 @@ func (h *GetHandler[Entity, Input, Output]) WithToOutputFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler[Entity, Input, Output]) WithEntityFactoryFn(
-	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
-) *GetHandler[Entity, Input, Output] {
+func (h *GetHandler) WithEntityFactoryFn(
+	entityFactoryFn repositorytypes.GetterFactoryFn,
+) *GetHandler {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
 	return &new
@@ -242,9 +244,9 @@ func (h *GetHandler[Entity, Input, Output]) WithEntityFactoryFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler[Entity, Input, Output]) WithBeforeCallback(
-	beforeCallback crudtypes.BeforeGetCallback[Input, Entity],
-) *GetHandler[Entity, Input, Output] {
+func (h *GetHandler) WithBeforeCallback(
+	beforeCallback crudtypes.BeforeGetCallback,
+) *GetHandler {
 	new := *h
 	new.beforeCallback = beforeCallback
 	return &new
