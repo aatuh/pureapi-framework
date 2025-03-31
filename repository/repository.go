@@ -6,18 +6,18 @@ import (
 
 	"github.com/pureapi/pureapi-core/database"
 	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-framework/dbquery"
+	"github.com/pureapi/pureapi-framework/db/query"
 	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
 )
 
 // readerRepo implements read operations.
-type readerRepo struct {
+type readerRepo[Entity databasetypes.Getter] struct {
 	queryBuilder repositorytypes.DataReaderQuery
 	errorChecker databasetypes.ErrorChecker
 }
 
 // DefaultReaderRepo implements ReaderRepo.
-var _ repositorytypes.ReaderRepo = (*readerRepo)(nil)
+var _ repositorytypes.ReaderRepo[databasetypes.Getter] = (*readerRepo[databasetypes.Getter])(nil)
 
 // NewReaderRepo creates a new readerRepo.
 //
@@ -28,11 +28,11 @@ var _ repositorytypes.ReaderRepo = (*readerRepo)(nil)
 //
 // Returns:
 //   - *readerRepo: A new readerRepo.
-func NewReaderRepo(
+func NewReaderRepo[Entity databasetypes.Getter](
 	queryBuilder repositorytypes.DataReaderQuery,
 	errorChecker databasetypes.ErrorChecker,
-) *readerRepo {
-	return &readerRepo{
+) *readerRepo[Entity] {
+	return &readerRepo[Entity]{
 		queryBuilder: queryBuilder,
 		errorChecker: errorChecker,
 	}
@@ -49,12 +49,12 @@ func NewReaderRepo(
 // Returns:
 //   - T: The entity scanned from the query.
 //   - error: An error if the query fails.
-func (r *readerRepo) GetOne(
+func (r *readerRepo[Entity]) GetOne(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
-	factoryFn repositorytypes.GetterFactoryFn,
+	factoryFn repositorytypes.GetterFactoryFn[Entity],
 	getOpts *repositorytypes.GetOptions,
-) (databasetypes.Getter, error) {
+) (Entity, error) {
 	tableName := factoryFn().TableName()
 	query, params := r.queryBuilder.Get(tableName, getOpts)
 	return database.QuerySingleEntity(
@@ -73,12 +73,12 @@ func (r *readerRepo) GetOne(
 // Returns:
 //   - []T: A slice of entities scanned from the query.
 //   - error: An error if the query fails.
-func (r *readerRepo) GetMany(
+func (r *readerRepo[Entity]) GetMany(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
-	factoryFn repositorytypes.GetterFactoryFn,
+	factoryFn repositorytypes.GetterFactoryFn[Entity],
 	getOpts *repositorytypes.GetOptions,
-) ([]databasetypes.Getter, error) {
+) ([]Entity, error) {
 	tableName := factoryFn().TableName()
 	query, params := r.queryBuilder.Get(tableName, getOpts)
 	return database.QueryEntities(
@@ -98,12 +98,12 @@ func (r *readerRepo) GetMany(
 // Returns:
 //   - int: The count of matching records.
 //   - error: An error if the query fails.
-func (r *readerRepo) Count(
+func (r *readerRepo[Entity]) Count(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
-	selectors dbquery.Selectors,
-	page *dbquery.Page,
-	factoryFn repositorytypes.GetterFactoryFn,
+	selectors query.Selectors,
+	page *query.Page,
+	factoryFn repositorytypes.GetterFactoryFn[Entity],
 ) (int, error) {
 	tableName := factoryFn().TableName()
 	countOpts := &repositorytypes.CountOptions{
@@ -138,26 +138,26 @@ func (r *readerRepo) Count(
 // Returns:
 //   - []T: A slice of entities scanned from the query.
 //   - error: An error if the query fails.
-func (r *readerRepo) Query(
+func (r *readerRepo[Entity]) Query(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
 	query string,
 	parameters []any,
-	factoryFn repositorytypes.GetterFactoryFn,
-) ([]databasetypes.Getter, error) {
+	factoryFn repositorytypes.GetterFactoryFn[Entity],
+) ([]Entity, error) {
 	return database.QueryEntities(
 		ctx, preparer, query, parameters, r.errorChecker, factoryFn,
 	)
 }
 
 // mutatorRepo implements mutation operations.
-type mutatorRepo struct {
+type mutatorRepo[Entity databasetypes.Mutator] struct {
 	queryBuilder repositorytypes.DataMutatorQuery
 	errorChecker databasetypes.ErrorChecker
 }
 
 // DefaultMutatorRepo implements MutatorRepo.
-var _ repositorytypes.MutatorRepo = (*mutatorRepo)(nil)
+var _ repositorytypes.MutatorRepo[databasetypes.Mutator] = (*mutatorRepo[databasetypes.Mutator])(nil)
 
 // NewMutatorRepo creates a new mutatorRepo.
 //
@@ -168,11 +168,11 @@ var _ repositorytypes.MutatorRepo = (*mutatorRepo)(nil)
 //
 // Returns:
 //   - *mutatorRepo: A new mutatorRepo.
-func NewMutatorRepo(
+func NewMutatorRepo[Entity databasetypes.Mutator](
 	queryBuilder repositorytypes.DataMutatorQuery,
 	errorChecker databasetypes.ErrorChecker,
-) *mutatorRepo {
-	return &mutatorRepo{
+) *mutatorRepo[Entity] {
+	return &mutatorRepo[Entity]{
 		queryBuilder: queryBuilder,
 		errorChecker: errorChecker,
 	}
@@ -188,11 +188,9 @@ func NewMutatorRepo(
 // Returns:
 //   - T: The inserted entity.
 //   - error: An error if the query fails.
-func (r *mutatorRepo) Insert(
-	ctx context.Context,
-	preparer databasetypes.Preparer,
-	mutator databasetypes.Mutator,
-) (databasetypes.Mutator, error) {
+func (r *mutatorRepo[Entity]) Insert(
+	ctx context.Context, preparer databasetypes.Preparer, mutator Entity,
+) (Entity, error) {
 	query, params := r.queryBuilder.Insert(
 		mutator.TableName(), mutator.InsertedValues,
 	)
@@ -219,12 +217,12 @@ func (r *mutatorRepo) Insert(
 // Returns:
 //   - int64: The number of rows affected by the update.
 //   - error: An error if the query fails.
-func (r *mutatorRepo) Update(
+func (r *mutatorRepo[Entity]) Update(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
-	updater databasetypes.Mutator,
-	selectors dbquery.Selectors,
-	updates dbquery.Updates,
+	updater Entity,
+	selectors query.Selectors,
+	updates query.Updates,
 ) (int64, error) {
 	query, params := r.queryBuilder.UpdateQuery(
 		updater.TableName(), updates, selectors,
@@ -255,11 +253,11 @@ func (r *mutatorRepo) Update(
 // Returns:
 //   - int64: The number of rows affected by the delete.
 //   - error: An error if the query fails.
-func (r *mutatorRepo) Delete(
+func (r *mutatorRepo[Entity]) Delete(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
-	deleter databasetypes.Mutator,
-	selectors dbquery.Selectors,
+	deleter Entity,
+	selectors query.Selectors,
 	deleteOpts *repositorytypes.DeleteOptions,
 ) (int64, error) {
 	query, params := r.queryBuilder.Delete(
@@ -280,30 +278,30 @@ func (r *mutatorRepo) Delete(
 }
 
 // customRepo implements the CustomRepo interface.
-type customRepo struct {
+type customRepo[T any] struct {
 	errorChecker databasetypes.ErrorChecker
 }
 
 // customRepo implements the CustomRepo interface.
-var _ repositorytypes.CustomRepo = (*customRepo)(nil)
+var _ repositorytypes.CustomRepo[any] = (*customRepo[any])(nil)
 
 // NewCustomRepo creates a new customRepo.
 // It requires an optional ErrorChecker to translate database-specific errors.
-func NewCustomRepo(
+func NewCustomRepo[T any](
 	errorChecker databasetypes.ErrorChecker,
-) repositorytypes.CustomRepo {
-	return &customRepo{errorChecker: errorChecker}
+) repositorytypes.CustomRepo[T] {
+	return &customRepo[T]{errorChecker: errorChecker}
 }
 
 // QueryCustom executes a custom SQL query and maps the results into a slice of
 // custom entities.
-func (r *customRepo) QueryCustom(
+func (r *customRepo[T]) QueryCustom(
 	ctx context.Context,
 	preparer databasetypes.Preparer,
 	query string,
 	parameters []any,
-	factoryFn func() any,
-) ([]any, error) {
+	factoryFn func() T,
+) ([]T, error) {
 	if preparer == nil {
 		return nil, fmt.Errorf("QueryCustom: preparer is nil")
 	}

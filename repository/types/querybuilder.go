@@ -1,28 +1,28 @@
 package types
 
-import "github.com/pureapi/pureapi-framework/dbquery"
+import "github.com/pureapi/pureapi-framework/db/query"
 
 // GetOptions is used for get queries.
 type GetOptions struct {
-	Selectors   dbquery.Selectors
-	Orders      dbquery.Orders
-	Page        *dbquery.Page
-	Joins       dbquery.Joins
-	Projections dbquery.Projections
+	Selectors   query.Selectors
+	Orders      query.Orders
+	Page        *query.Page
+	Joins       query.Joins
+	Projections query.Projections
 	Lock        bool
 }
 
 // CountOptions is used for count queries.
 type CountOptions struct {
-	Selectors dbquery.Selectors
-	Page      *dbquery.Page
-	Joins     dbquery.Joins
+	Selectors query.Selectors
+	Page      *query.Page
+	Joins     query.Joins
 }
 
 // DeleteOptions is used for delete queries.
 type DeleteOptions struct {
 	Limit  int
-	Orders dbquery.Orders
+	Orders query.Orders
 }
 
 // ColumnDefinition defines the properties for a table column in a table.
@@ -50,7 +50,7 @@ type TableOptions struct {
 // of parameters.
 type InsertedValuesFn func() ([]string, []any)
 
-// DataMutatorQuery provides methods for modifying data in a dbquery.
+// DataMutatorQuery provides methods for modifying data in a query.
 type DataMutatorQuery interface {
 	// Insert builds an INSERT statement for a single row.
 	Insert(
@@ -65,17 +65,17 @@ type DataMutatorQuery interface {
 	// UpsertMany builds an UPSERT (insert or update) statement.
 	UpsertMany(
 		table string, valuesFuncs []InsertedValuesFn,
-		updateProjections []dbquery.Projection,
+		updateProjections []query.Projection,
 	) (query string, params []any)
 
 	// UpdateQuery builds an UPDATE statement for given selectors.
 	UpdateQuery(
-		table string, updates []dbquery.Update, selectors []dbquery.Selector,
+		table string, updates []query.Update, selectors []query.Selector,
 	) (query string, params []any)
 
 	// Delete builds a DELETE statement for given selectors.
 	Delete(
-		table string, selectors []dbquery.Selector, opts *DeleteOptions,
+		table string, selectors []query.Selector, opts *DeleteOptions,
 	) (query string, params []any)
 }
 
@@ -108,6 +108,15 @@ type SchemaManager interface {
 	SetVariableQuery(
 		variable string, value string,
 	) (string, []any, error)
+
+	// CurrentTimestamp returns the current timestamp expression.
+	CurrentTimestamp() *string
+
+	// CurrentTimestamp returns the text type expression.
+	TypeText() *string
+
+	// CurrentTimestamp returns the datetime type expression.
+	TypeDatetime() *string
 }
 
 // AdvisoryLocker provides methods for advisory locking.

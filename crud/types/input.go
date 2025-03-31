@@ -1,33 +1,32 @@
 package types
 
 import (
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-framework/dbinput"
+	"github.com/pureapi/pureapi-framework/db/input"
 )
 
-type CreateInputer interface {
-	GetEntity() databasetypes.Mutator
+type CreateInputer[Entity any] interface {
+	GetEntity() Entity
 }
 
-type CreateOutputer interface {
-	SetEntities(entities []databasetypes.Mutator)
+type CreateOutputer[Entity any] interface {
+	SetEntities(entities []Entity)
 }
 
 type GetInputer interface {
-	GetSelectors() dbinput.Selectors
-	GetOrders() dbinput.Orders
-	GetPage() *dbinput.Page
+	GetSelectors() input.Selectors
+	GetOrders() input.Orders
+	GetPage() *input.Page
 	GetCount() bool
 }
 
-type GetOutputer interface {
-	SetEntities(entities []databasetypes.Getter)
+type GetOutputer[Entity any] interface {
+	SetEntities(entities []Entity)
 	SetCount(count int)
 }
 
 type UpdateInputer interface {
-	GetSelectors() dbinput.Selectors
-	GetUpdates() dbinput.Updates
+	GetSelectors() input.Selectors
+	GetUpdates() input.Updates
 	GetUpsert() bool
 }
 
@@ -36,7 +35,7 @@ type UpdateOutputer interface {
 }
 
 type DeleteInputer interface {
-	GetSelectors() dbinput.Selectors
+	GetSelectors() input.Selectors
 }
 
 type DeleteOutputer interface {

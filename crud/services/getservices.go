@@ -6,9 +6,15 @@ import (
 
 	databasetypes "github.com/pureapi/pureapi-core/database/types"
 	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/dbinput"
+	"github.com/pureapi/pureapi-framework/db/input"
 	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
+	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
 )
+
+// AfterGet is a function that is called after a get operation.
+type AfterGet[Entity databasetypes.Getter] func(
+	ctx context.Context, tx databasetypes.Tx, count int,
+) ([]Entity, int, error)
 
 // ParseGetInput translates API parameters to DB parameters.
 //
@@ -25,10 +31,10 @@ import (
 //   - *ParsedGetEndpointInput: A pointer to the parsed get endpoint input.
 //   - error: An error if the input is invalid.
 func ParseGetInput(
-	apiToDBFields crudtypes.APIToDBFields,
-	selectors dbinput.Selectors,
-	orders dbinput.Orders,
-	inputPage *dbinput.Page,
+	apiToDBFields apimappertypes.APIToDBFields,
+	selectors input.Selectors,
+	orders input.Orders,
+	inputPage *input.Page,
 	maxPage int,
 	count bool,
 ) (*crudtypes.ParsedGetEndpointInput, error) {
@@ -37,7 +43,7 @@ func ParseGetInput(
 		return nil, err
 	}
 	if inputPage == nil {
-		inputPage = &dbinput.Page{Offset: 0, Limit: maxPage}
+		inputPage = &input.Page{Offset: 0, Limit: maxPage}
 	}
 	dbSelectors, err := selectors.ToDBSelectors(apiToDBFields)
 	if err != nil {
@@ -63,14 +69,15 @@ func ParseGetInput(
 // Returns:
 //   - []Entity: The entities.
 //   - error: Any error that occurred during the operation.
-func GetInvoke(
+func GetInvoke[Entity databasetypes.Getter](
 	ctx context.Context,
 	parsedInput *crudtypes.ParsedGetEndpointInput,
 	connFn repositorytypes.ConnFn,
-	entityFactoryFn repositorytypes.GetterFactoryFn,
-	readerRepo repositorytypes.ReaderRepo,
-	_ repositorytypes.TxManager[databasetypes.Getter],
-) ([]databasetypes.Getter, int, error) {
+	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
+	readerRepo repositorytypes.ReaderRepo[Entity],
+	_ repositorytypes.TxManager[Entity],
+	afterGetFn AfterGet[Entity],
+) ([]Entity, int, error) {
 	conn, err := connFn()
 	if err != nil {
 		return nil, 0, err
@@ -85,6 +92,9 @@ func GetInvoke(
 		)
 		if err != nil {
 			return nil, 0, err
+		}
+		if afterGetFn != nil {
+			return afterGetFn(ctx, tx, count)
 		}
 		return nil, count, nil
 	}
@@ -105,11 +115,11 @@ func GetInvoke(
 }
 
 // GetHandler is the handler for the get endpoint.
-type GetHandler struct {
+type GetHandler[Entity databasetypes.Getter] struct {
 	parseInputFn    func(input *crudtypes.GetInputer) (*crudtypes.ParsedGetEndpointInput, error)
-	getInvokeFn     crudtypes.GetInvokeFn
-	toOutputFn      crudtypes.ToGetOutputFn
-	entityFactoryFn repositorytypes.GetterFactoryFn
+	getInvokeFn     crudtypes.GetInvokeFn[Entity]
+	toOutputFn      crudtypes.ToGetOutputFn[Entity]
+	entityFactoryFn repositorytypes.GetterFactoryFn[Entity]
 	beforeCallback  crudtypes.BeforeGetCallback
 }
 
@@ -125,16 +135,16 @@ type GetHandler struct {
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func NewGetHandler(
+func NewGetHandler[Entity databasetypes.Getter](
 	parseInputFn func(
 		input *crudtypes.GetInputer,
 	) (*crudtypes.ParsedGetEndpointInput, error),
-	getInvokeFn crudtypes.GetInvokeFn,
-	toOutputFn crudtypes.ToGetOutputFn,
-	entityFactoryFn repositorytypes.GetterFactoryFn,
+	getInvokeFn crudtypes.GetInvokeFn[Entity],
+	toOutputFn crudtypes.ToGetOutputFn[Entity],
+	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
 	beforeCallback crudtypes.BeforeGetCallback,
-) *GetHandler {
-	return &GetHandler{
+) *GetHandler[Entity] {
+	return &GetHandler[Entity]{
 		parseInputFn:    parseInputFn,
 		getInvokeFn:     getInvokeFn,
 		toOutputFn:      toOutputFn,
@@ -153,7 +163,7 @@ func NewGetHandler(
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
-func (h *GetHandler) Handle(
+func (h *GetHandler[Entity]) Handle(
 	w http.ResponseWriter, r *http.Request, i *crudtypes.GetInputer,
 ) (any, error) {
 	parsedInput, err := h.parseInputFn(i)
@@ -182,9 +192,9 @@ func (h *GetHandler) Handle(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler) WithParseInputFn(
+func (h *GetHandler[Entity]) WithParseInputFn(
 	parseInputFn func(input *crudtypes.GetInputer) (*crudtypes.ParsedGetEndpointInput, error),
-) *GetHandler {
+) *GetHandler[Entity] {
 	new := *h
 	new.parseInputFn = parseInputFn
 	return &new
@@ -197,9 +207,9 @@ func (h *GetHandler) WithParseInputFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler) WithGetInvokeFn(
-	getInvokeFn crudtypes.GetInvokeFn,
-) *GetHandler {
+func (h *GetHandler[Entity]) WithGetInvokeFn(
+	getInvokeFn crudtypes.GetInvokeFn[Entity],
+) *GetHandler[Entity] {
 	new := *h
 	new.getInvokeFn = getInvokeFn
 	return &new
@@ -213,9 +223,9 @@ func (h *GetHandler) WithGetInvokeFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler) WithToOutputFn(
-	toOutputFn crudtypes.ToGetOutputFn,
-) *GetHandler {
+func (h *GetHandler[Entity]) WithToOutputFn(
+	toOutputFn crudtypes.ToGetOutputFn[Entity],
+) *GetHandler[Entity] {
 	new := *h
 	new.toOutputFn = toOutputFn
 	return &new
@@ -229,9 +239,9 @@ func (h *GetHandler) WithToOutputFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler) WithEntityFactoryFn(
-	entityFactoryFn repositorytypes.GetterFactoryFn,
-) *GetHandler {
+func (h *GetHandler[Entity]) WithEntityFactoryFn(
+	entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
+) *GetHandler[Entity] {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
 	return &new
@@ -244,9 +254,9 @@ func (h *GetHandler) WithEntityFactoryFn(
 //
 // Returns:
 //   - *GetHandler: The new get handler.
-func (h *GetHandler) WithBeforeCallback(
+func (h *GetHandler[Entity]) WithBeforeCallback(
 	beforeCallback crudtypes.BeforeGetCallback,
-) *GetHandler {
+) *GetHandler[Entity] {
 	new := *h
 	new.beforeCallback = beforeCallback
 	return &new

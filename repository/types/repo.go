@@ -4,72 +4,72 @@ import (
 	"context"
 
 	"github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-framework/dbquery"
+	"github.com/pureapi/pureapi-framework/db/query"
 )
 
 // ConnFn returns a database connection.
 type ConnFn func() (types.DB, error)
 
 // GetterFactoryFn returns a Getter factory function.
-type GetterFactoryFn func() types.Getter
+type GetterFactoryFn[Entity types.Getter] func() Entity
 
 // ReaderRepo defines retrieval-related operations.
-type ReaderRepo interface {
+type ReaderRepo[Entity types.Getter] interface {
 	// GetOne retrieves a single record from the DB.
 	GetOne(
 		ctx context.Context,
 		preparer types.Preparer,
-		factoryFn GetterFactoryFn,
+		factoryFn GetterFactoryFn[Entity],
 		getOptions *GetOptions,
-	) (types.Getter, error)
+	) (Entity, error)
 
 	// GetMany retrieves multiple records from the DB.
 	GetMany(
 		ctx context.Context,
 		preparer types.Preparer,
-		factoryFn GetterFactoryFn,
+		factoryFn GetterFactoryFn[Entity],
 		getOptions *GetOptions,
-	) ([]types.Getter, error)
+	) ([]Entity, error)
 
 	// Count returns a record count.
 	Count(
 		ctx context.Context,
 		preparer types.Preparer,
-		selectors dbquery.Selectors,
-		page *dbquery.Page,
-		factoryFn GetterFactoryFn,
+		selectors query.Selectors,
+		page *query.Page,
+		factoryFn GetterFactoryFn[Entity],
 	) (int, error)
 }
 
 // MutatorRepo defines mutation-related operations.
-type MutatorRepo interface {
+type MutatorRepo[Entity types.Mutator] interface {
 	// Insert builds an insert query and executes it.
 	Insert(
-		ctx context.Context, preparer types.Preparer, mutator types.Mutator,
-	) (types.Mutator, error)
+		ctx context.Context, preparer types.Preparer, entity Entity,
+	) (Entity, error)
 
 	// Update builds an update query and executes it.
 	Update(
 		ctx context.Context,
 		preparer types.Preparer,
-		updater types.Mutator,
-		selectors dbquery.Selectors,
-		updates dbquery.Updates,
+		entity Entity,
+		selectors query.Selectors,
+		updates query.Updates,
 	) (int64, error)
 
 	// Delete builds a delete query and executes it.
 	Delete(
 		ctx context.Context,
 		preparer types.Preparer,
-		deleter types.Mutator,
-		selectors dbquery.Selectors,
+		entity Entity,
+		selectors query.Selectors,
 		deleteOpts *DeleteOptions,
 	) (int64, error)
 }
 
 // CustomRepo defines methods for executing custom SQL queries and mapping the
 // results into custom entities.
-type CustomRepo interface {
+type CustomRepo[Entity any] interface {
 	// QueryCustom executes a custom SQL query. It returns a slice of T or an
 	// error if the query or scan fails.
 	QueryCustom(
@@ -77,8 +77,8 @@ type CustomRepo interface {
 		preparer types.Preparer,
 		query string,
 		parameters []any,
-		factoryFn func() any,
-	) ([]any, error)
+		factoryFn func() Entity,
+	) ([]Entity, error)
 }
 
 // RawQueryer defines generic methods for executing raw queries and commands.

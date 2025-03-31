@@ -4,9 +4,8 @@ import (
 	"github.com/pureapi/pureapi-core/endpoint"
 	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
 	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/api"
-	"github.com/pureapi/pureapi-framework/crud/errors"
-	"github.com/pureapi/pureapi-framework/json"
+	"github.com/pureapi/pureapi-framework/api/errors"
+	"github.com/pureapi/pureapi-framework/jsonapi"
 )
 
 // withDefaultFactory returns the provided factory if non-nil, or the
@@ -23,25 +22,26 @@ func withDefaultFactory[T any](
 // defaultErrorHandlerFactory returns a default error handler factory that
 // adds generic errors along with the additionalErrors.
 func defaultErrorHandlerFactory(
-	crudCfg *CRUDConfig,
-	additionalErrors api.ExpectedErrors,
+	systemID string,
+	additionalErrors errors.ExpectedErrors,
 ) func() endpointtypes.ErrorHandler {
 	return func() endpointtypes.ErrorHandler {
-		return api.NewErrorHandler(
-			api.NewErrorBuilder(crudCfg.SystemID).
-				With(errors.GenericErrors()).
-				With(additionalErrors).
+		return errors.NewErrorHandler(
+			errors.NewExpectedErrorBuilder(systemID).
+				WithErrors(errors.GenericErrors()).
+				WithErrors(additionalErrors).
 				Build(),
-		).WithSystemID(&crudCfg.SystemID)
+		).WithSystemID(&systemID)
 	}
 }
 
 // defaultOutputHandlerFactory returns a default output handler factory.
 func defaultOutputHandlerFactory(
-	crudCfg *CRUDConfig,
+	systemID string,
+	emitterLogger utiltypes.EmitterLogger,
 ) func() endpointtypes.OutputHandler {
 	return func() endpointtypes.OutputHandler {
-		return json.NewJSONOutput(crudCfg.EmitterLogger, crudCfg.SystemID)
+		return jsonapi.NewJSONOutput(emitterLogger, systemID)
 	}
 }
 

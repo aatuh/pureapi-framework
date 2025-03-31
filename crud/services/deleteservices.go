@@ -6,9 +6,15 @@ import (
 
 	databasetypes "github.com/pureapi/pureapi-core/database/types"
 	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/dbinput"
+	"github.com/pureapi/pureapi-framework/db/input"
 	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
+	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
 )
+
+// AfterDelete is a function that is called after a delete operation.
+type AfterDelete func(
+	ctx context.Context, tx databasetypes.Tx, count int64,
+) (*int64, error)
 
 // ParseDeleteInput translates API delete input into DB delete input.
 //
@@ -24,9 +30,9 @@ import (
 //     input.
 //   - error: An error if the input is invalid.
 func ParseDeleteInput(
-	apiToDBFields crudtypes.APIToDBFields,
-	selectors dbinput.Selectors,
-	orders dbinput.Orders,
+	apiToDBFields apimappertypes.APIToDBFields,
+	selectors input.Selectors,
+	orders input.Orders,
 	limit int,
 ) (*crudtypes.ParsedDeleteEndpointInput, error) {
 	dbSelectors, err := selectors.ToDBSelectors(apiToDBFields)
@@ -61,22 +67,29 @@ func ParseDeleteInput(
 // Returns:
 //   - int64: The number of entities deleted.
 //   - error: Any error that occurred during the operation.
-func DeleteInvoke(
+func DeleteInvoke[Entity databasetypes.Mutator](
 	ctx context.Context,
 	parsedInput *crudtypes.ParsedDeleteEndpointInput,
 	connFn repositorytypes.ConnFn,
-	entity databasetypes.Mutator,
-	mutatorRepo repositorytypes.MutatorRepo,
+	entity Entity,
+	mutatorRepo repositorytypes.MutatorRepo[Entity],
 	txManager repositorytypes.TxManager[*int64],
+	afterDeleteFn AfterDelete,
 ) (int64, error) {
 	count, err := txManager.WithTransaction(
 		ctx,
 		connFn,
 		func(ctx context.Context, tx databasetypes.Tx) (*int64, error) {
-			c, err := mutatorRepo.Delete(
+			count, err := mutatorRepo.Delete(
 				ctx, tx, entity, parsedInput.Selectors, parsedInput.DeleteOpts,
 			)
-			return &c, err
+			if err != nil {
+				return nil, err
+			}
+			if afterDeleteFn != nil {
+				return afterDeleteFn(ctx, tx, count)
+			}
+			return &count, err
 		})
 	if err != nil {
 		return 0, err
@@ -85,14 +98,14 @@ func DeleteInvoke(
 }
 
 // DeleteHandler is the handler implementation for the delete endpoint.
-type DeleteHandler struct {
+type DeleteHandler[Entity databasetypes.Mutator] struct {
 	parseInputFn func(
 		input *crudtypes.DeleteInputer,
 	) (*crudtypes.ParsedDeleteEndpointInput, error)
-	deleteInvokeFn  crudtypes.DeleteInvokeFn
+	deleteInvokeFn  crudtypes.DeleteInvokeFn[Entity]
 	toOutputFn      crudtypes.ToDeleteOutputFn
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn
-	beforeCallback  crudtypes.BeforeDeleteCallback
+	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity]
+	beforeCallback  crudtypes.BeforeDeleteCallback[Entity]
 }
 
 // NewDeleteHandler creates a new delete handler.
@@ -108,16 +121,16 @@ type DeleteHandler struct {
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func NewDeleteHandler(
+func NewDeleteHandler[Entity databasetypes.Mutator](
 	parseInputFn func(
 		input *crudtypes.DeleteInputer,
 	) (*crudtypes.ParsedDeleteEndpointInput, error),
-	deleteInvokeFn crudtypes.DeleteInvokeFn,
+	deleteInvokeFn crudtypes.DeleteInvokeFn[Entity],
 	toOutputFn crudtypes.ToDeleteOutputFn,
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn,
-	beforeCallback crudtypes.BeforeDeleteCallback,
-) *DeleteHandler {
-	return &DeleteHandler{
+	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity],
+	beforeCallback crudtypes.BeforeDeleteCallback[Entity],
+) *DeleteHandler[Entity] {
+	return &DeleteHandler[Entity]{
 		parseInputFn:    parseInputFn,
 		deleteInvokeFn:  deleteInvokeFn,
 		toOutputFn:      toOutputFn,
@@ -136,7 +149,7 @@ func NewDeleteHandler(
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
-func (h *DeleteHandler) Handle(
+func (h *DeleteHandler[Entity]) Handle(
 	w http.ResponseWriter, r *http.Request, i *crudtypes.DeleteInputer,
 ) (any, error) {
 	parsedInput, err := h.parseInputFn(i)
@@ -166,11 +179,11 @@ func (h *DeleteHandler) Handle(
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func (h *DeleteHandler) WithParseInputFn(
+func (h *DeleteHandler[Entity]) WithParseInputFn(
 	parseInputFn func(
 		input *crudtypes.DeleteInputer,
 	) (*crudtypes.ParsedDeleteEndpointInput, error),
-) *DeleteHandler {
+) *DeleteHandler[Entity] {
 	new := *h
 	new.parseInputFn = parseInputFn
 	return &new
@@ -184,9 +197,9 @@ func (h *DeleteHandler) WithParseInputFn(
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func (h *DeleteHandler) WithDeleteInvokeFn(
-	deleteInvokeFn crudtypes.DeleteInvokeFn,
-) *DeleteHandler {
+func (h *DeleteHandler[Entity]) WithDeleteInvokeFn(
+	deleteInvokeFn crudtypes.DeleteInvokeFn[Entity],
+) *DeleteHandler[Entity] {
 	new := *h
 	new.deleteInvokeFn = deleteInvokeFn
 	return &new
@@ -200,9 +213,9 @@ func (h *DeleteHandler) WithDeleteInvokeFn(
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func (h *DeleteHandler) WithToOutputFn(
+func (h *DeleteHandler[Entity]) WithToOutputFn(
 	toOutputFn crudtypes.ToDeleteOutputFn,
-) *DeleteHandler {
+) *DeleteHandler[Entity] {
 	new := *h
 	new.toOutputFn = toOutputFn
 	return &new
@@ -216,9 +229,9 @@ func (h *DeleteHandler) WithToOutputFn(
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func (h *DeleteHandler) WithEntityFactoryFn(
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn,
-) *DeleteHandler {
+func (h *DeleteHandler[Entity]) WithEntityFactoryFn(
+	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity],
+) *DeleteHandler[Entity] {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
 	return &new
@@ -232,9 +245,9 @@ func (h *DeleteHandler) WithEntityFactoryFn(
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func (h *DeleteHandler) WithBeforeDeleteCallback(
-	beforeCallback crudtypes.BeforeDeleteCallback,
-) *DeleteHandler {
+func (h *DeleteHandler[Entity]) WithBeforeDeleteCallback(
+	beforeCallback crudtypes.BeforeDeleteCallback[Entity],
+) *DeleteHandler[Entity] {
 	new := *h
 	new.beforeCallback = beforeCallback
 	return &new

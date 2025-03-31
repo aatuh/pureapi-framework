@@ -2,12 +2,14 @@ package types
 
 import (
 	"net/http"
+
+	databasetypes "github.com/pureapi/pureapi-core/database/types"
 )
 
 // CreateHandler is the handler interface for the create endpoint.
-type CreateHandler interface {
+type CreateHandler[Entity databasetypes.Mutator] interface {
 	Handle(
-		w http.ResponseWriter, r *http.Request, i *CreateInputer,
+		w http.ResponseWriter, r *http.Request, i *CreateInputer[Entity],
 	) (any, error)
 }
 
