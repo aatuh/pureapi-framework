@@ -7,10 +7,9 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-core/util"
-	"github.com/pureapi/pureapi-framework/db/query"
-	repotypes "github.com/pureapi/pureapi-framework/repository/types"
+	"github.com/aatuh/pureapi-core/apierror"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-framework/db"
 )
 
 // User represents a simple entity for demonstration.
@@ -35,7 +34,7 @@ func (u *User) TableName() string {
 //
 // Returns:
 //   - error: An error if the scan fails.
-func (u *User) ScanRow(row types.Row) error {
+func (u *User) ScanRow(row database.Row) error {
 	return row.Scan(&u.ID, &u.Name)
 }
 
@@ -68,7 +67,7 @@ func (eu *ErrorUser) TableName() string {
 //
 // Returns:
 //   - error: An error if the scan fails.
-func (eu *ErrorUser) ScanRow(row types.Row) error {
+func (eu *ErrorUser) ScanRow(row database.Row) error {
 	// Reuse User's ScanRow implementation.
 	return (*User)(eu).ScanRow(row)
 }
@@ -82,9 +81,9 @@ func (eu *ErrorUser) InsertedValues() ([]string, []any) {
 	return (*User)(eu).InsertedValues()
 }
 
-// SimpleQueryBuilder implements the DataMutatorQuery and DataReaderQuery
+// SimpleQuery implements the DataMutatorQuery and DataReaderQuery
 // interfaces.
-type SimpleQueryBuilder struct{}
+type SimpleQuery struct{}
 
 // Get builds a simple SELECT query for the given table.
 //
@@ -95,16 +94,16 @@ type SimpleQueryBuilder struct{}
 // Returns:
 //   - string: The query.
 //   - []any: The values.
-func (qb *SimpleQueryBuilder) Get(
-	table string, opts *repotypes.GetOptions,
+func (q *SimpleQuery) Get(
+	table string, opts *db.GetOptions,
 ) (string, []any) {
 	query := fmt.Sprintf("SELECT id, name FROM %s", table)
 	log.Printf("Get query: %s", query)
 	return query, nil
 }
 
-func (qb *SimpleQueryBuilder) Count(
-	table string, opts *repotypes.CountOptions,
+func (q *SimpleQuery) Count(
+	table string, opts *db.CountOptions,
 ) (string, []any) {
 	panic("not implemented")
 }
@@ -118,8 +117,8 @@ func (qb *SimpleQueryBuilder) Count(
 // Returns:
 //   - string: The query.
 //   - []any: The values.
-func (qb *SimpleQueryBuilder) Insert(
-	table string, insertedValuesFn repotypes.InsertedValuesFn,
+func (q *SimpleQuery) Insert(
+	table string, insertedValuesFn db.InsertedValuesFn,
 ) (string, []any) {
 	cols, vals := insertedValuesFn()
 	placeholders := make([]string, len(vals))
@@ -136,24 +135,24 @@ func (qb *SimpleQueryBuilder) Insert(
 	return query, vals
 }
 
-func (qb *SimpleQueryBuilder) InsertMany(
-	table string, valuesFuncs []repotypes.InsertedValuesFn,
+func (q *SimpleQuery) InsertMany(
+	table string, valuesFuncs []db.InsertedValuesFn,
 ) (query string, params []any) {
 	panic("not implemented")
 }
-func (qb *SimpleQueryBuilder) UpsertMany(
-	table string, valuesFuncs []repotypes.InsertedValuesFn,
-	updateProjections []query.Projection,
+func (q *SimpleQuery) UpsertMany(
+	table string, valuesFuncs []db.InsertedValuesFn,
+	updateProjections []db.Projection,
 ) (string, []any) {
 	panic("not implemented")
 }
-func (qb *SimpleQueryBuilder) UpdateQuery(
-	table string, updates []query.Update, selectors []query.Selector,
+func (q *SimpleQuery) UpdateQuery(
+	table string, updates []db.Update, selectors []db.Selector,
 ) (string, []any) {
 	panic("not implemented")
 }
-func (qb *SimpleQueryBuilder) Delete(
-	table string, selectors []query.Selector, opts *repotypes.DeleteOptions,
+func (q *SimpleQuery) Delete(
+	table string, selectors []db.Selector, opts *db.DeleteOptions,
 ) (string, []any) {
 	panic("not implemented")
 }
@@ -170,7 +169,7 @@ type SimpleErrorChecker struct{}
 // Returns:
 //   - error: The translated error.
 func (ec *SimpleErrorChecker) Check(err error) error {
-	return util.NewAPIError("MY_API_ERROR").
+	return apierror.NewAPIError("MY_API_ERROR").
 		WithData(err.Error()).WithOrigin("my_api")
 }
 
@@ -192,9 +191,9 @@ type SimpleSchemaManager struct{}
 func (sm *SimpleSchemaManager) CreateTableQuery(
 	tableName string,
 	ifNotExists bool,
-	columns []repotypes.ColumnDefinition,
+	columns []db.ColumnDefinition,
 	constraints []string,
-	opts repotypes.TableOptions,
+	opts db.TableOptions,
 ) (string, []any, error) {
 	inClause := ""
 	if ifNotExists {

@@ -6,16 +6,16 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/pureapi/pureapi-core/database/types"
-	coreexamples "github.com/pureapi/pureapi-core/doc/examples"
-	repositoryexamples "github.com/pureapi/pureapi-framework/doc/examples/repository"
-	"github.com/pureapi/pureapi-framework/repository"
-	repotypes "github.com/pureapi/pureapi-framework/repository/types"
+	"github.com/aatuh/pureapi-core/database"
+
+	coreexamples "github.com/aatuh/pureapi-core/doc/examples"
+	"github.com/aatuh/pureapi-framework/db"
+	repositoryexamples "github.com/aatuh/pureapi-framework/doc/examples/repository"
 )
 
 // This example demonstrates the usage of the Repository interface. It creates
 // a database table and inserts and retrieves a user using repositories and uses
-// custom implementations of the QueryBuilder and ErrorChecker interfaces to
+// custom implementations of the Query and ErrorChecker interfaces to
 // handle the database operations.
 func main() {
 	// Connect to the database.
@@ -36,9 +36,9 @@ func main() {
 }
 
 // CreateTable creates the "users" table.
-func CreateTable(db types.DB) {
+func CreateTable(dbh database.DB) {
 	schemaManager := &repositoryexamples.SimpleSchemaManager{}
-	columns := []repotypes.ColumnDefinition{
+	columns := []db.ColumnDefinition{
 		{
 			Name:          "id",
 			Type:          "INTEGER",
@@ -53,13 +53,13 @@ func CreateTable(db types.DB) {
 		},
 	}
 	createTableQuery, _, err := schemaManager.CreateTableQuery(
-		"users", true, columns, nil, repotypes.TableOptions{},
+		"users", true, columns, nil, db.TableOptions{},
 	)
 	if err != nil {
 		log.Printf("Create table query error: %v", err)
 		return
 	}
-	if _, err = db.Exec(createTableQuery); err != nil {
+	if _, err = dbh.Exec(createTableQuery); err != nil {
 		log.Printf("Create table execution error: %v", err)
 		return
 	}
@@ -70,14 +70,14 @@ func CreateTable(db types.DB) {
 // and ErrorChecker implementations.
 //
 // Parameters:
-//   - db: The database handle.
-func CreateUser(db types.DB) {
-	mutatorRepo := repository.NewMutatorRepo[*repositoryexamples.User](
-		&repositoryexamples.SimpleQueryBuilder{},
+//   - dbh: The database handle.
+func CreateUser(dbh database.DB) {
+	mutatorRepo := db.NewMutatorRepo[*repositoryexamples.User](
+		&repositoryexamples.SimpleQuery{},
 		&repositoryexamples.SimpleErrorChecker{},
 	)
 	newUser := &repositoryexamples.User{Name: "Alice"}
-	insertedUser, err := mutatorRepo.Insert(context.Background(), db, newUser)
+	insertedUser, err := mutatorRepo.Insert(context.Background(), dbh, newUser)
 	if err != nil {
 		log.Printf("Insert error: %v", err)
 		return
@@ -89,15 +89,15 @@ func CreateUser(db types.DB) {
 // and ErrorChecker implementations.
 //
 // Parameters:
-//   - db: The database handle.
-func GetUser(db types.DB) {
-	readerRepo := repository.NewReaderRepo[*repositoryexamples.User](
-		&repositoryexamples.SimpleQueryBuilder{},
+//   - dbh: The database handle.
+func GetUser(dbh database.DB) {
+	readerRepo := db.NewReaderRepo[*repositoryexamples.User](
+		&repositoryexamples.SimpleQuery{},
 		&repositoryexamples.SimpleErrorChecker{},
 	)
 	retrievedUser, err := readerRepo.GetOne(
 		context.Background(),
-		db,
+		dbh,
 		func() *repositoryexamples.User { return &repositoryexamples.User{} },
 		nil,
 	)

@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/pureapi/pureapi-core/database"
-	"github.com/pureapi/pureapi-core/database/types"
+	"github.com/aatuh/pureapi-core/database"
 	mysqlconfig "github.com/pureapi/pureapi-mysql/config"
 	sqliteconfig "github.com/pureapi/pureapi-sqlite/config"
 	"github.com/pureapi/pureapi-util/envvar"
@@ -74,7 +73,7 @@ func GetDatabaseEnvConfig() DatabaseEnvConfig {
 // Returns:
 //   - DB: A database connection.
 //   - error: An error if the connection fails.
-func GetConnection(cfg ...*database.ConnectConfig) (types.DB, error) {
+func GetConnection(cfg ...*database.ConnectConfig) (database.DB, error) {
 	dbDriver := GetDBDriverName(cfg...)
 	switch dbDriver {
 	case SQLite3:
@@ -141,7 +140,7 @@ func ConnectConfig() (*database.ConnectConfig, error) {
 // Returns:
 //   - DB: A database connection.
 //   - error: An error if the connection fails.
-func GetMySQLConnection(cfg ...*database.ConnectConfig) (types.DB, error) {
+func GetMySQLConnection(cfg ...*database.ConnectConfig) (database.DB, error) {
 	envCfg := GetDatabaseEnvConfig()
 	var useCfg *database.ConnectConfig
 	if len(cfg) > 0 && cfg[0] != nil {
@@ -166,7 +165,7 @@ func GetMySQLConnection(cfg ...*database.ConnectConfig) (types.DB, error) {
 // Returns:
 //   - DB: A database connection.
 //   - error: An error if the connection fails.
-func GetSQLiteConnection(cfg ...*database.ConnectConfig) (types.DB, error) {
+func GetSQLiteConnection(cfg ...*database.ConnectConfig) (database.DB, error) {
 	envCfg := GetDatabaseEnvConfig()
 	var useCfg *database.ConnectConfig
 	if len(cfg) > 0 && cfg[0] != nil {

@@ -4,13 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	endpoint "github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/api/errors"
-	"github.com/pureapi/pureapi-framework/defaults"
-	"github.com/pureapi/pureapi-framework/jsonapi"
-	"github.com/pureapi/pureapi-framework/util/apimapper"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	"github.com/aatuh/pureapi-framework/api/errutil"
+	"github.com/aatuh/pureapi-framework/api/input"
+	"github.com/aatuh/pureapi-framework/api/json"
+	"github.com/aatuh/pureapi-framework/defaults"
 )
 
 // Health endpoint constants.
@@ -48,10 +47,10 @@ func NewHealthOutput() *HealthOutput {
 //   - systemID: The system ID.
 //
 // Returns:
-//   - endpointtypes.Definition: The definition of the health endpoint.
-func HealthDefinition(systemID string) endpointtypes.Definition {
+//   - endpoint.Definition: The definition of the health endpoint.
+func HealthDefinition(systemID string) endpoint.Definition {
 	handler := HealthEndpointHandler(
-		apimapper.NewMapInputHandler(
+		input.NewMapInputHandler(
 			nil,
 			defaults.InputConversionRules(),
 			defaults.ValidationRules(),
@@ -77,12 +76,12 @@ func HealthDefinition(systemID string) endpointtypes.Definition {
 //   - systemID: The system ID.
 //
 // Returns:
-//   - endpointtypes.Handler: The handler for the health endpoint.
+//   - endpoint.Handler: The handler for the health endpoint.
 func HealthEndpointHandler(
-	inputHandler endpointtypes.InputHandler[HealthInput],
-	emitterLogger utiltypes.EmitterLogger,
+	inputHandler endpoint.InputHandler[HealthInput],
+	emitterLogger event.EmitterLogger,
 	systemID string,
-) endpointtypes.Handler[HealthInput] {
+) endpoint.Handler[HealthInput] {
 	return endpoint.NewHandler(
 		inputHandler,
 		func(w http.ResponseWriter, r *http.Request, i *HealthInput,
@@ -90,11 +89,11 @@ func HealthEndpointHandler(
 			// Only return empty output to indicate success.
 			return NewHealthOutput(), nil
 		},
-		errors.NewErrorHandler(errors.NewExpectedErrorBuilder(systemID).
-			WithErrors(errors.GenericErrors()).
+		errutil.NewErrorHandler(errutil.NewExpectedErrorBuilder(systemID).
+			WithErrors(errutil.GenericErrors()).
 			Build(),
 		).WithSystemID(&systemID),
-		jsonapi.NewJSONOutput(emitterLogger, systemID),
+		json.NewJSONOutput(emitterLogger, systemID),
 	).WithEmitterLogger(emitterLogger)
 }
 
@@ -105,12 +104,17 @@ func HealthEndpointHandler(
 //   - host: The host.
 //
 // Returns:
-//   - *jsonapi.Response[jsonapi.APIOutput[HealthOutput]]: The response.
+//   - *apijson.Response[apijson.APIOutput[HealthOutput]]: The response.
 //   - error: The error.
 func SendHealthRequest(
 	ctx context.Context, host string,
-) (*jsonapi.Response[jsonapi.APIOutput[HealthOutput]], error) {
-	return jsonapi.SendRequest[HealthInput, jsonapi.APIOutput[HealthOutput]](
-		ctx, host, HealthURL, HealthMethod, NewHealthInput(),
+) (*json.Response[json.APIOutput[HealthOutput]], error) {
+	return json.SendRequest[HealthInput, json.APIOutput[HealthOutput]](
+		ctx,
+		host,
+		HealthURL,
+		HealthMethod,
+		NewHealthInput(),
+		defaults.CtxLogger,
 	)
 }

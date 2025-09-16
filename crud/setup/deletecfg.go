@@ -3,31 +3,35 @@ package setup
 import (
 	"context"
 	"errors"
+	"net/http"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/crud/services"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/db/input"
-	querytypes "github.com/pureapi/pureapi-framework/db/query/types"
-	"github.com/pureapi/pureapi-framework/defaults"
-	"github.com/pureapi/pureapi-framework/repository"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
-	"github.com/pureapi/pureapi-framework/util/apimapper"
-	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	apidb "github.com/aatuh/pureapi-framework/api/db"
+	"github.com/aatuh/pureapi-framework/api/input"
+	"github.com/aatuh/pureapi-framework/crud/services"
+	"github.com/aatuh/pureapi-framework/db"
+	"github.com/aatuh/pureapi-framework/defaults"
+	"github.com/aatuh/pureapi-framework/util/inpututil"
 )
 
+// DeleteHandler is the handler interface for the delete endpoint.
+type DeleteHandler interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i services.DeleteInputer,
+	) (any, error)
+}
+
 type DefaultDeleteInput struct {
-	Selectors input.Selectors `json:"selectors"`
+	Selectors apidb.APISelectors `json:"selectors"`
 }
 
 func NewDeleteInput() *DefaultDeleteInput {
 	return &DefaultDeleteInput{}
 }
 
-func (d *DefaultDeleteInput) GetSelectors() input.Selectors { return d.Selectors }
+func (d *DefaultDeleteInput) GetSelectors() apidb.APISelectors { return d.Selectors }
 
 type DefaultDeleteOutput struct {
 	Count int64 `json:"count"`
@@ -40,30 +44,30 @@ func NewDefaultDeleteOutput() *DefaultDeleteOutput {
 func (d *DefaultDeleteOutput) SetCount(count int64) { d.Count = count }
 
 // DeleteConfig holds the configuration for the delete endpoint.
-type DeleteConfig[Entity databasetypes.Mutator] struct {
+type DeleteConfig[Entity database.Mutator] struct {
 	// Default config for the delete input handler.
 	DefaultInputHandlerConfig *DefaultDeleteInputHandlerConfig
 	// Override for the delete input handler.
-	InputHandlerFactoryFn func() endpointtypes.InputHandler[crudtypes.DeleteInputer]
+	InputHandlerFactoryFn func() endpoint.InputHandler[services.DeleteInputer]
 
 	// Default config for the delete handler logic.
 	DefaultHandlerLogicConfig *DefaultDeleteHandlerLogicConfig[Entity]
 	// Override for the delete handler logic.
-	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[crudtypes.DeleteInputer]
+	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[services.DeleteInputer]
 
-	ErrorHandlerFactoryFn  func() endpointtypes.ErrorHandler
-	OutputHandlerFactoryFn func() endpointtypes.OutputHandler
+	ErrorHandlerFactoryFn  func() endpoint.ErrorHandler
+	OutputHandlerFactoryFn func() endpoint.OutputHandler
 }
 
 // Validate validates and sets defaults for the delete config.
 // It returns a new config with the defaults set.
 func (cfg *DeleteConfig[Entity]) Validate(
 	systemID string,
-	emitterLogger utiltypes.EmitterLogger,
+	emitterLogger event.EmitterLogger,
 	conversionRules map[string]func(any) any,
 	customRules map[string]func(any) error,
-	connFn repositorytypes.ConnFn,
-	apiToDBFields apimappertypes.APIToDBFields,
+	connFn db.ConnFn,
+	apiToDBFields inpututil.APIToDBFields,
 ) (*DeleteConfig[Entity], error) {
 	newCfg := *cfg
 
@@ -79,16 +83,17 @@ func (cfg *DeleteConfig[Entity]) Validate(
 	}
 	newCfg.InputHandlerFactoryFn = withDefaultFactory(
 		newCfg.InputHandlerFactoryFn,
-		func() endpointtypes.InputHandler[crudtypes.DeleteInputer] {
-			return apimapper.NewMapInputHandler(
+		func() endpoint.InputHandler[services.DeleteInputer] {
+			x := input.NewMapInputHandler(
 				newCfg.DefaultInputHandlerConfig.APIFields,
 				conversionRules,
 				customRules,
-				func() *crudtypes.DeleteInputer {
+				func() *services.DeleteInputer {
 					inp := newCfg.DefaultInputHandlerConfig.InputFactoryFn()
 					return &inp
 				},
 			)
+			return x.MustValidateAPIFields()
 		},
 	)
 
@@ -105,15 +110,15 @@ func (cfg *DeleteConfig[Entity]) Validate(
 	}
 	newCfg.HandlerLogicFnFactoryFn = withDefaultFactory(
 		newCfg.HandlerLogicFnFactoryFn,
-		func() endpoint.HandlerLogicFn[crudtypes.DeleteInputer] {
+		func() endpoint.HandlerLogicFn[services.DeleteInputer] {
 			return DefaultDeleteHandler(
 				connFn,
 				newCfg.DefaultHandlerLogicConfig.EntityFn,
 				apiToDBFields,
 				newCfg.DefaultHandlerLogicConfig.OutputFactoryFn,
 				newCfg.DefaultHandlerLogicConfig.BeforeCallback,
-				repository.NewMutatorRepo[Entity](
-					defaults.QueryBuilder(), defaults.QueryErrorChecker(),
+				db.NewMutatorRepo[Entity](
+					defaults.Query(), defaults.QueryErrorChecker(),
 				),
 				defaults.TxManager[*int64](),
 				newCfg.DefaultHandlerLogicConfig.AfterCallback,
@@ -134,31 +139,30 @@ func (cfg *DeleteConfig[Entity]) Validate(
 }
 
 // DefaultDeleteHandler sets up an endpoint handler for the delete operation.
-func DefaultDeleteHandler[Entity databasetypes.Mutator](
-	connFn repositorytypes.ConnFn,
-	entityFn func(opts ...querytypes.EntityOption[Entity]) Entity,
-	apiToDBFields apimappertypes.APIToDBFields,
-	outputFactoryFn func() crudtypes.DeleteOutputer,
-	beforeCallback crudtypes.BeforeDeleteCallback[Entity],
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[*int64],
+func DefaultDeleteHandler[Entity database.Mutator](
+	connFn db.ConnFn,
+	entityFn func(opts ...db.EntityOption[Entity]) Entity,
+	apiToDBFields inpututil.APIToDBFields,
+	outputFactoryFn func() services.DeleteOutputer,
+	beforeCallback services.BeforeDeleteCallback[Entity],
+	mutatorRepo db.MutatorRepository[Entity],
+	txManager db.TxManager[*int64],
 	afterDeleteFn services.AfterDelete,
-) crudtypes.DeleteHandler {
+) *services.DeleteHandler[Entity] {
 	return services.NewDeleteHandler(
 		func(
-			input *crudtypes.DeleteInputer,
-		) (*crudtypes.ParsedDeleteEndpointInput, error) {
-			i := *input
+			input services.DeleteInputer,
+		) (*services.ParsedDeleteEndpointInput, error) {
 			return services.ParseDeleteInput(
 				apiToDBFields,
-				i.GetSelectors(),
+				input.GetSelectors(),
 				nil,
 				0,
 			)
 		},
 		func(
 			ctx context.Context,
-			parsedInput *crudtypes.ParsedDeleteEndpointInput,
+			parsedInput *services.ParsedDeleteEndpointInput,
 			entity Entity,
 		) (int64, error) {
 			return services.DeleteInvoke(
@@ -171,7 +175,7 @@ func DefaultDeleteHandler[Entity databasetypes.Mutator](
 				afterDeleteFn,
 			)
 		},
-		func(count int64) (crudtypes.DeleteOutputer, error) {
+		func(count int64) (services.DeleteOutputer, error) {
 			output := outputFactoryFn()
 			output.SetCount(count)
 			return output, nil
@@ -184,8 +188,8 @@ func DefaultDeleteHandler[Entity databasetypes.Mutator](
 // DefaultDeleteInputHandlerConfig holds the default configuration for the
 // delete input handler.
 type DefaultDeleteInputHandlerConfig struct {
-	APIFields      apimapper.APIFields
-	InputFactoryFn func() crudtypes.DeleteInputer
+	APIFields      input.APIFields
+	InputFactoryFn func() services.DeleteInputer
 }
 
 // Validate validates and sets defaults for the delete input handler config.
@@ -193,7 +197,7 @@ type DefaultDeleteInputHandlerConfig struct {
 func (cfg *DefaultDeleteInputHandlerConfig) Validate() (*DefaultDeleteInputHandlerConfig, error) {
 	newCfg := *cfg
 	if newCfg.InputFactoryFn == nil {
-		newCfg.InputFactoryFn = func() crudtypes.DeleteInputer {
+		newCfg.InputFactoryFn = func() services.DeleteInputer {
 			return NewDeleteInput()
 		}
 	}
@@ -202,11 +206,11 @@ func (cfg *DefaultDeleteInputHandlerConfig) Validate() (*DefaultDeleteInputHandl
 
 // DefaultDeleteHandlerLogicConfig holds the default configuration for the
 // delete handler logic.
-type DefaultDeleteHandlerLogicConfig[Entity databasetypes.Mutator] struct {
-	OutputFactoryFn func() crudtypes.DeleteOutputer
-	BeforeCallback  crudtypes.BeforeDeleteCallback[Entity]
+type DefaultDeleteHandlerLogicConfig[Entity database.Mutator] struct {
+	OutputFactoryFn func() services.DeleteOutputer
+	BeforeCallback  services.BeforeDeleteCallback[Entity]
 	AfterCallback   services.AfterDelete
-	EntityFn        func(...querytypes.EntityOption[Entity]) Entity
+	EntityFn        func(...db.EntityOption[Entity]) Entity
 }
 
 // Validate validates and sets defaults for the delete handler logic config.
@@ -214,7 +218,7 @@ type DefaultDeleteHandlerLogicConfig[Entity databasetypes.Mutator] struct {
 func (cfg *DefaultDeleteHandlerLogicConfig[Entity]) Validate() (*DefaultDeleteHandlerLogicConfig[Entity], error) {
 	newCfg := *cfg
 	if newCfg.OutputFactoryFn == nil {
-		newCfg.OutputFactoryFn = func() crudtypes.DeleteOutputer {
+		newCfg.OutputFactoryFn = func() services.DeleteOutputer {
 			return NewDefaultDeleteOutput()
 		}
 	}

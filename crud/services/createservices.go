@@ -4,14 +4,48 @@ import (
 	"context"
 	"net/http"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-framework/db"
 )
 
+// CreateInputer is the input interface for the create endpoint.
+type CreateInputer[Entity any] interface {
+	GetEntity() Entity
+}
+
+// CreateOutputer is the output interface for the create endpoint.
+type CreateOutputer[Entity any] interface {
+	SetEntities(entities []Entity)
+}
+
+// CreateInvokeFn is the function invokes the create endpoint.
+type CreateInvokeFn[Entity database.Mutator] func(
+	ctx context.Context, entity Entity,
+) (Entity, error)
+
+// CreateEntityFactoryFn is the function that creates a new entity.
+type CreateEntityFactoryFn[Entity database.Mutator] func(
+	ctx context.Context, input *CreateInputer[Entity],
+) (Entity, error)
+
+// ToCreateOutputFn is the function that converts the entity to the endpoint
+// output.
+type ToCreateOutputFn[Entity database.Mutator] func(
+	entity Entity,
+) (CreateOutputer[Entity], error)
+
+// BeforeCreateCallback is the function that runs before the create operation.
+// It can be used to modify the entity before it is created.
+type BeforeCreateCallback[Entity database.Mutator] func(
+	w http.ResponseWriter,
+	r *http.Request,
+	entity Entity,
+	input CreateInputer[Entity],
+) (Entity, error)
+
 // AfterCreate is a function that is called after a create operation.
-type AfterCreate[Entity databasetypes.Mutator] func(
-	ctx context.Context, tx databasetypes.Tx, entity Entity,
+type AfterCreate[Entity database.Mutator] func(
+	ctx context.Context, tx database.Tx, entity Entity,
 ) (Entity, error)
 
 // CreateInvoke executes the create operation.
@@ -26,18 +60,18 @@ type AfterCreate[Entity databasetypes.Mutator] func(
 // Returns:
 //   - Entity: The created entity.
 //   - error: Any error that occurred during the operation.
-func CreateInvoke[Entity databasetypes.Mutator](
+func CreateInvoke[Entity database.Mutator](
 	ctx context.Context,
-	connFn repositorytypes.ConnFn,
+	connFn db.ConnFn,
 	entity Entity,
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[Entity],
+	mutatorRepo db.MutatorRepository[Entity],
+	txManager db.TxManager[Entity],
 	afterCreateFn AfterCreate[Entity],
 ) (Entity, error) {
 	return txManager.WithTransaction(
 		ctx,
 		connFn,
-		func(ctx context.Context, tx databasetypes.Tx) (Entity, error) {
+		func(ctx context.Context, tx database.Tx) (Entity, error) {
 			entity, err := mutatorRepo.Insert(ctx, tx, entity)
 			if err != nil {
 				return entity, err
@@ -51,11 +85,11 @@ func CreateInvoke[Entity databasetypes.Mutator](
 }
 
 // CreateHandler is the handler implementation for the create endpoint.
-type CreateHandler[Entity databasetypes.Mutator] struct {
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Entity]
-	createInvokeFn  crudtypes.CreateInvokeFn[Entity]
-	toOutputFn      crudtypes.ToCreateOutputFn[Entity]
-	beforeCallback  crudtypes.BeforeCreateCallback[Entity]
+type CreateHandler[Entity database.Mutator] struct {
+	entityFactoryFn CreateEntityFactoryFn[Entity]
+	createInvokeFn  CreateInvokeFn[Entity]
+	toOutputFn      ToCreateOutputFn[Entity]
+	beforeCallback  BeforeCreateCallback[Entity]
 }
 
 // NewCreateHandler creates a new create handler.
@@ -69,11 +103,11 @@ type CreateHandler[Entity databasetypes.Mutator] struct {
 //
 // Returns:
 //   - *CreateHandler: The new create handler.
-func NewCreateHandler[Entity databasetypes.Mutator](
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Entity],
-	createInvokeFn crudtypes.CreateInvokeFn[Entity],
-	toOutputFn crudtypes.ToCreateOutputFn[Entity],
-	beforeCallback crudtypes.BeforeCreateCallback[Entity],
+func NewCreateHandler[Entity database.Mutator](
+	entityFactoryFn CreateEntityFactoryFn[Entity],
+	createInvokeFn CreateInvokeFn[Entity],
+	toOutputFn ToCreateOutputFn[Entity],
+	beforeCallback BeforeCreateCallback[Entity],
 ) *CreateHandler[Entity] {
 	return &CreateHandler[Entity]{
 		entityFactoryFn: entityFactoryFn,
@@ -94,14 +128,14 @@ func NewCreateHandler[Entity databasetypes.Mutator](
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
 func (h *CreateHandler[Entity]) Handle(
-	w http.ResponseWriter, r *http.Request, i *crudtypes.CreateInputer[Entity],
+	w http.ResponseWriter, r *http.Request, i *CreateInputer[Entity],
 ) (any, error) {
 	entity, err := h.entityFactoryFn(r.Context(), i)
 	if err != nil {
 		return nil, err
 	}
 	if h.beforeCallback != nil {
-		entity, err = h.beforeCallback(w, r, &entity, i)
+		entity, err = h.beforeCallback(w, r, entity, *i)
 		if err != nil {
 			return nil, err
 		}
@@ -122,7 +156,7 @@ func (h *CreateHandler[Entity]) Handle(
 // Returns:
 //   - *CreateHandler: The new create handler.
 func (h *CreateHandler[Entity]) WithEntityFactoryFn(
-	entityFactoryFn crudtypes.CreateEntityFactoryFn[Entity],
+	entityFactoryFn CreateEntityFactoryFn[Entity],
 ) *CreateHandler[Entity] {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
@@ -138,7 +172,7 @@ func (h *CreateHandler[Entity]) WithEntityFactoryFn(
 // Returns:
 //   - *CreateHandler: The new create handler.
 func (h *CreateHandler[Entity]) WithCreateInvokeFn(
-	createInvokeFn crudtypes.CreateInvokeFn[Entity],
+	createInvokeFn CreateInvokeFn[Entity],
 ) *CreateHandler[Entity] {
 	new := *h
 	new.createInvokeFn = createInvokeFn
@@ -153,7 +187,7 @@ func (h *CreateHandler[Entity]) WithCreateInvokeFn(
 // Returns:
 //   - *CreateHandler: The new create handler.
 func (h *CreateHandler[Entity]) WithToOutputFn(
-	toOutputFn crudtypes.ToCreateOutputFn[Entity],
+	toOutputFn ToCreateOutputFn[Entity],
 ) *CreateHandler[Entity] {
 	new := *h
 	new.toOutputFn = toOutputFn
@@ -168,7 +202,7 @@ func (h *CreateHandler[Entity]) WithToOutputFn(
 // Returns:
 //   - *CreateHandler: The new create handler.
 func (h *CreateHandler[Entity]) WithBeforeCallback(
-	beforeCallback crudtypes.BeforeCreateCallback[Entity],
+	beforeCallback BeforeCreateCallback[Entity],
 ) *CreateHandler[Entity] {
 	new := *h
 	new.beforeCallback = beforeCallback

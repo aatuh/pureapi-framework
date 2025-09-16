@@ -1,11 +1,10 @@
 package api
 
 import (
-	"github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	"github.com/pureapi/pureapi-framework/api/errors"
-	"github.com/pureapi/pureapi-framework/defaults"
-	"github.com/pureapi/pureapi-framework/jsonapi"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-framework/api/errutil"
+	"github.com/aatuh/pureapi-framework/api/json"
+	"github.com/aatuh/pureapi-framework/defaults"
 )
 
 // GenericEndpointDefinition builds the endpoint definition for any operation.
@@ -20,15 +19,15 @@ import (
 //   - invokeFn: The function to invoke the endpoint.
 //
 // Returns:
-//   - endpointtypes.Definition: The endpoint definition.
+//   - endpoint.Definition: The endpoint definition.
 func GenericEndpointDefinition[Input any](
 	systemID string,
 	url string,
 	method string,
-	inputHandler endpointtypes.InputHandler[Input],
-	expectedErrors errors.ExpectedErrors,
+	inputHandler endpoint.InputHandler[Input],
+	expectedErrors errutil.ExpectedErrors,
 	invokeFn endpoint.HandlerLogicFn[Input],
-) endpointtypes.Definition {
+) endpoint.Definition {
 	handler := GenericEndpointHandler(
 		systemID, inputHandler, expectedErrors, invokeFn,
 	)
@@ -47,23 +46,22 @@ func GenericEndpointDefinition[Input any](
 //   - invokeFn: The function to invoke the endpoint.
 //
 // Returns:
-//   - endpointtypes.Handler: The endpoint handler.
+//   - endpoint.Handler: The endpoint handler.
 func GenericEndpointHandler[Input any](
 	systemID string,
-	inputHandler endpointtypes.InputHandler[Input],
-	expectedErrors errors.ExpectedErrors,
+	inputHandler endpoint.InputHandler[Input],
+	expectedErrors errutil.ExpectedErrors,
 	invokeFn endpoint.HandlerLogicFn[Input],
-) endpointtypes.Handler[Input] {
+) endpoint.Handler[Input] {
 	emitterLogger := defaults.EmitterLogger()
 	return endpoint.NewHandler(
 		inputHandler,
 		invokeFn,
-		errors.NewErrorHandler(
-			errors.
-				NewExpectedErrorBuilder(systemID).
+		errutil.NewErrorHandler(
+			errutil.NewExpectedErrorBuilder(systemID).
 				WithErrors(expectedErrors).
 				Build(),
 		).WithSystemID(&systemID),
-		jsonapi.NewJSONOutput(emitterLogger, systemID),
+		json.NewJSONOutput(emitterLogger, systemID),
 	).WithEmitterLogger(emitterLogger)
 }

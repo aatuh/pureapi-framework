@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/util/httpwrap"
+	"github.com/aatuh/pureapi-core/logging"
+	"github.com/aatuh/pureapi-framework/util/httpwrap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -89,7 +89,7 @@ func TestPanicHandlerTestSuite(t *testing.T) {
 // and assigns it to the suite for later assertions.
 func (suite *PanicHandlerTestSuite) fakeCtxLoggerFactory(
 	ctx context.Context,
-) types.ILogger {
+) logging.ILogger {
 	suite.dummyLogger = &DummyLogger{}
 	return suite.dummyLogger
 }

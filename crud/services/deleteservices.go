@@ -4,19 +4,55 @@ import (
 	"context"
 	"net/http"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/db/input"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
-	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
+	"github.com/aatuh/pureapi-core/database"
+	apidb "github.com/aatuh/pureapi-framework/api/db"
+	"github.com/aatuh/pureapi-framework/db"
+	"github.com/aatuh/pureapi-framework/util/inpututil"
 )
+
+type DeleteInputer interface {
+	GetSelectors() apidb.APISelectors
+}
+
+type DeleteOutputer interface {
+	SetCount(count int64)
+}
+
+// DeleteInvokeFn is the function that invokes the delete endpoint.
+type ToDeleteOutputFn func(count int64) (DeleteOutputer, error)
+
+// DeleteEntityFactoryFn is the function that creates a new entity.
+type DeleteEntityFactoryFn[Entity database.Mutator] func() Entity
+
+// ParsedDeleteEndpointInput represents a parsed delete endpoint db.
+type ParsedDeleteEndpointInput struct {
+	Selectors  db.Selectors
+	DeleteOpts *db.DeleteOptions
+}
+
+// DeleteInvokeFn is the function that invokes the delete endpoint.
+type DeleteInvokeFn[Entity database.Mutator] func(
+	ctx context.Context,
+	parsedInput *ParsedDeleteEndpointInput,
+	entity Entity,
+) (int64, error)
+
+// BeforeDeleteCallback is the function that runs before the delete operation.
+// It can be used to modify the parsed input and entity before they are used.
+type BeforeDeleteCallback[Entity database.Mutator] func(
+	w http.ResponseWriter,
+	r *http.Request,
+	parsedInput *ParsedDeleteEndpointInput,
+	entity Entity,
+	input DeleteInputer,
+) (*ParsedDeleteEndpointInput, Entity, error)
 
 // AfterDelete is a function that is called after a delete operation.
 type AfterDelete func(
-	ctx context.Context, tx databasetypes.Tx, count int64,
+	ctx context.Context, tx database.Tx, count int64,
 ) (*int64, error)
 
-// ParseDeleteInput translates API delete input into DB delete input.
+// ParseDeleteInput translates API delete input into DB delete db.
 //
 // Parameters:
 //   - apiToDBFields: A map translating API field names to their corresponding
@@ -27,14 +63,14 @@ type AfterDelete func(
 //
 // Returns:
 //   - *ParsedDeleteEndpointInput: A pointer to the parsed delete endpoint
-//     input.
+//     db.
 //   - error: An error if the input is invalid.
 func ParseDeleteInput(
-	apiToDBFields apimappertypes.APIToDBFields,
-	selectors input.Selectors,
-	orders input.Orders,
+	apiToDBFields inpututil.APIToDBFields,
+	selectors apidb.APISelectors,
+	orders apidb.Orders,
 	limit int,
-) (*crudtypes.ParsedDeleteEndpointInput, error) {
+) (*ParsedDeleteEndpointInput, error) {
 	dbSelectors, err := selectors.ToDBSelectors(apiToDBFields)
 	if err != nil {
 		return nil, err
@@ -46,9 +82,9 @@ func ParseDeleteInput(
 	if err != nil {
 		return nil, err
 	}
-	return &crudtypes.ParsedDeleteEndpointInput{
+	return &ParsedDeleteEndpointInput{
 		Selectors: dbSelectors,
-		DeleteOpts: &repositorytypes.DeleteOptions{
+		DeleteOpts: &db.DeleteOptions{
 			Limit:  limit,
 			Orders: dbOrders,
 		},
@@ -67,19 +103,19 @@ func ParseDeleteInput(
 // Returns:
 //   - int64: The number of entities deleted.
 //   - error: Any error that occurred during the operation.
-func DeleteInvoke[Entity databasetypes.Mutator](
+func DeleteInvoke[Entity database.Mutator](
 	ctx context.Context,
-	parsedInput *crudtypes.ParsedDeleteEndpointInput,
-	connFn repositorytypes.ConnFn,
+	parsedInput *ParsedDeleteEndpointInput,
+	connFn db.ConnFn,
 	entity Entity,
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[*int64],
+	mutatorRepo db.MutatorRepository[Entity],
+	txManager db.TxManager[*int64],
 	afterDeleteFn AfterDelete,
 ) (int64, error) {
 	count, err := txManager.WithTransaction(
 		ctx,
 		connFn,
-		func(ctx context.Context, tx databasetypes.Tx) (*int64, error) {
+		func(ctx context.Context, tx database.Tx) (*int64, error) {
 			count, err := mutatorRepo.Delete(
 				ctx, tx, entity, parsedInput.Selectors, parsedInput.DeleteOpts,
 			)
@@ -98,20 +134,20 @@ func DeleteInvoke[Entity databasetypes.Mutator](
 }
 
 // DeleteHandler is the handler implementation for the delete endpoint.
-type DeleteHandler[Entity databasetypes.Mutator] struct {
+type DeleteHandler[Entity database.Mutator] struct {
 	parseInputFn func(
-		input *crudtypes.DeleteInputer,
-	) (*crudtypes.ParsedDeleteEndpointInput, error)
-	deleteInvokeFn  crudtypes.DeleteInvokeFn[Entity]
-	toOutputFn      crudtypes.ToDeleteOutputFn
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity]
-	beforeCallback  crudtypes.BeforeDeleteCallback[Entity]
+		input DeleteInputer,
+	) (*ParsedDeleteEndpointInput, error)
+	deleteInvokeFn  DeleteInvokeFn[Entity]
+	toOutputFn      ToDeleteOutputFn
+	entityFactoryFn DeleteEntityFactoryFn[Entity]
+	beforeCallback  BeforeDeleteCallback[Entity]
 }
 
 // NewDeleteHandler creates a new delete handler.
 //
 // Parameters:
-//   - parseInputFn: The function that parses the input.
+//   - parseInputFn: The function that parses the db.
 //   - deleteInvokeFn: The function that invokes the delete endpoint.
 //   - toOutputFn: The function that converts the entities to the endpoint
 //     output.
@@ -121,14 +157,14 @@ type DeleteHandler[Entity databasetypes.Mutator] struct {
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
-func NewDeleteHandler[Entity databasetypes.Mutator](
+func NewDeleteHandler[Entity database.Mutator](
 	parseInputFn func(
-		input *crudtypes.DeleteInputer,
-	) (*crudtypes.ParsedDeleteEndpointInput, error),
-	deleteInvokeFn crudtypes.DeleteInvokeFn[Entity],
-	toOutputFn crudtypes.ToDeleteOutputFn,
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity],
-	beforeCallback crudtypes.BeforeDeleteCallback[Entity],
+		input DeleteInputer,
+	) (*ParsedDeleteEndpointInput, error),
+	deleteInvokeFn DeleteInvokeFn[Entity],
+	toOutputFn ToDeleteOutputFn,
+	entityFactoryFn DeleteEntityFactoryFn[Entity],
+	beforeCallback BeforeDeleteCallback[Entity],
 ) *DeleteHandler[Entity] {
 	return &DeleteHandler[Entity]{
 		parseInputFn:    parseInputFn,
@@ -144,22 +180,22 @@ func NewDeleteHandler[Entity databasetypes.Mutator](
 // Parameters:
 //   - w: The response writer.
 //   - r: The request.
-//   - i: The input.
+//   - i: The db.
 //
 // Returns:
 //   - any: The endpoint output.
 //   - error: An error if the request fails.
 func (h *DeleteHandler[Entity]) Handle(
-	w http.ResponseWriter, r *http.Request, i *crudtypes.DeleteInputer,
+	w http.ResponseWriter, r *http.Request, i *DeleteInputer,
 ) (any, error) {
-	parsedInput, err := h.parseInputFn(i)
+	parsedInput, err := h.parseInputFn(*i)
 	if err != nil {
 		return nil, err
 	}
 	entity := h.entityFactoryFn()
 	if h.beforeCallback != nil {
 		parsedInput, entity, err = h.beforeCallback(
-			w, r, parsedInput, entity, i,
+			w, r, parsedInput, entity, *i,
 		)
 		if err != nil {
 			return nil, err
@@ -175,14 +211,14 @@ func (h *DeleteHandler[Entity]) Handle(
 // WithParseInputFn returns a new delete handler with the parse input function.
 //
 // Parameters:
-//   - parseInputFn: The function that parses the input.
+//   - parseInputFn: The function that parses the db.
 //
 // Returns:
 //   - *DeleteHandler: The new delete handler.
 func (h *DeleteHandler[Entity]) WithParseInputFn(
 	parseInputFn func(
-		input *crudtypes.DeleteInputer,
-	) (*crudtypes.ParsedDeleteEndpointInput, error),
+		input DeleteInputer,
+	) (*ParsedDeleteEndpointInput, error),
 ) *DeleteHandler[Entity] {
 	new := *h
 	new.parseInputFn = parseInputFn
@@ -198,7 +234,7 @@ func (h *DeleteHandler[Entity]) WithParseInputFn(
 // Returns:
 //   - *DeleteHandler: The new delete handler.
 func (h *DeleteHandler[Entity]) WithDeleteInvokeFn(
-	deleteInvokeFn crudtypes.DeleteInvokeFn[Entity],
+	deleteInvokeFn DeleteInvokeFn[Entity],
 ) *DeleteHandler[Entity] {
 	new := *h
 	new.deleteInvokeFn = deleteInvokeFn
@@ -214,7 +250,7 @@ func (h *DeleteHandler[Entity]) WithDeleteInvokeFn(
 // Returns:
 //   - *DeleteHandler: The new delete handler.
 func (h *DeleteHandler[Entity]) WithToOutputFn(
-	toOutputFn crudtypes.ToDeleteOutputFn,
+	toOutputFn ToDeleteOutputFn,
 ) *DeleteHandler[Entity] {
 	new := *h
 	new.toOutputFn = toOutputFn
@@ -230,7 +266,7 @@ func (h *DeleteHandler[Entity]) WithToOutputFn(
 // Returns:
 //   - *DeleteHandler: The new delete handler.
 func (h *DeleteHandler[Entity]) WithEntityFactoryFn(
-	entityFactoryFn crudtypes.DeleteEntityFactoryFn[Entity],
+	entityFactoryFn DeleteEntityFactoryFn[Entity],
 ) *DeleteHandler[Entity] {
 	new := *h
 	new.entityFactoryFn = entityFactoryFn
@@ -246,7 +282,7 @@ func (h *DeleteHandler[Entity]) WithEntityFactoryFn(
 // Returns:
 //   - *DeleteHandler: The new delete handler.
 func (h *DeleteHandler[Entity]) WithBeforeDeleteCallback(
-	beforeCallback crudtypes.BeforeDeleteCallback[Entity],
+	beforeCallback BeforeDeleteCallback[Entity],
 ) *DeleteHandler[Entity] {
 	new := *h
 	new.beforeCallback = beforeCallback

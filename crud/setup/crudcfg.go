@@ -4,15 +4,14 @@ import (
 	"errors"
 	"fmt"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	querytypes "github.com/pureapi/pureapi-framework/db/query/types"
-	"github.com/pureapi/pureapi-framework/defaults"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
-	"github.com/pureapi/pureapi-framework/util/apimapper"
-	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	"github.com/aatuh/pureapi-framework/api/input"
+	"github.com/aatuh/pureapi-framework/crud/services"
+	"github.com/aatuh/pureapi-framework/db"
+	"github.com/aatuh/pureapi-framework/defaults"
+	"github.com/aatuh/pureapi-framework/util/inpututil"
 )
 
 // CRUDOperation defines the type of CRUD operations.
@@ -28,21 +27,21 @@ const (
 
 // CRUDDefinitions holds a collection of enabled endpoint definitions.
 type CRUDDefinitions struct {
-	Endpoints map[CRUDOperation]endpointtypes.Definition
+	Endpoints map[CRUDOperation]endpoint.Definition
 }
 
 // CRUDOption represents a functional option for configuring CRUDConfig.
-type CRUDOption[Entity databasetypes.CRUDEntity] func(*CRUDConfig[Entity])
+type CRUDOption[Entity database.CRUDEntity] func(*CRUDConfig[Entity])
 
 // CRUDConfig holds all the settings for the CRUD endpoints.
-type CRUDConfig[Entity databasetypes.CRUDEntity] struct {
+type CRUDConfig[Entity database.CRUDEntity] struct {
 	SystemID      string
 	URL           string
-	Stack         endpointtypes.Stack
-	EmitterLogger utiltypes.EmitterLogger
+	Stack         endpoint.Stack
+	EmitterLogger event.EmitterLogger
 
-	ConnFn        repositorytypes.ConnFn
-	APIToDBFields apimappertypes.APIToDBFields
+	ConnFn        db.ConnFn
+	APIToDBFields inpututil.APIToDBFields
 
 	ConversionRules map[string]func(any) any
 	CustomRules     map[string]func(any) error
@@ -161,24 +160,24 @@ func (cfg *CRUDConfig[Entity]) ValidateMainCRUDConfig() (
 }
 
 // DefaultCRUDConfig holds the default settings for the CRUD endpoints.
-type DefaultCRUDConfig[Entity databasetypes.CRUDEntity] struct {
+type DefaultCRUDConfig[Entity database.CRUDEntity] struct {
 	SystemID              string
 	URL                   string
-	ConnFn                repositorytypes.ConnFn
-	EntityFn              func(...querytypes.EntityOption[Entity]) Entity
-	APIToDBFields         apimappertypes.APIToDBFields
-	AllAPIFields          apimapper.APIFields
-	CreateAPIFields       apimapper.APIFields
-	CreateInputFactoryFn  func() crudtypes.CreateInputer[Entity]
-	CreateOutputFactoryFn func() crudtypes.CreateOutputer[Entity]
-	GetAPIFields          apimapper.APIFields
-	GetOutputFactoryFn    func() crudtypes.GetOutputer[Entity]
-	UpdateAPIFields       apimapper.APIFields
-	DeleteAPIFields       apimapper.APIFields
+	ConnFn                db.ConnFn
+	EntityFn              func(...db.EntityOption[Entity]) Entity
+	APIToDBFields         inpututil.APIToDBFields
+	AllAPIFields          input.APIFields
+	CreateAPIFields       input.APIFields
+	CreateInputFactoryFn  func() services.CreateInputer[Entity]
+	CreateOutputFactoryFn func() services.CreateOutputer[Entity]
+	GetAPIFields          input.APIFields
+	GetOutputFactoryFn    func() services.GetOutputer[Entity]
+	UpdateAPIFields       input.APIFields
+	DeleteAPIFields       input.APIFields
 }
 
 // NewDefaultCRUDConfig returns a new CRUDConfig using the default settings.
-func NewDefaultCRUDConfig[Entity databasetypes.CRUDEntity](
+func NewDefaultCRUDConfig[Entity database.CRUDEntity](
 	cfg *DefaultCRUDConfig[Entity],
 ) *CRUDConfig[Entity] {
 	return &CRUDConfig[Entity]{

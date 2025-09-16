@@ -1,18 +1,17 @@
 package defaults
 
 import (
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-framework/repository"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-framework/db"
 	"github.com/pureapi/pureapi-sqlite/errorchecker"
 	"github.com/pureapi/pureapi-sqlite/query"
 )
 
-// QueryBuilder returns a new QueryBuilder.
+// Query returns a new Query.
 //
 // Returns:
-//   - QueryBuilder: A new QueryBuilder.
-func QueryBuilder() repositorytypes.QueryBuilder {
+//   - Query: A new Query.
+func Query() db.Query {
 	return &query.Query{}
 }
 
@@ -20,7 +19,7 @@ func QueryBuilder() repositorytypes.QueryBuilder {
 //
 // Returns:
 //   - QueryErrorChecker: A new QueryErrorChecker.
-func QueryErrorChecker() databasetypes.ErrorChecker {
+func QueryErrorChecker() database.ErrorChecker {
 	return errorchecker.NewErrorChecker()
 }
 
@@ -29,10 +28,10 @@ func QueryErrorChecker() databasetypes.ErrorChecker {
 // Returns:
 //   - MutatorRepo: A new MutatorRepo.
 func MutatorRepo[
-	Entity databasetypes.Mutator,
-]() repositorytypes.MutatorRepo[Entity] {
-	return repository.NewMutatorRepo[Entity](
-		QueryBuilder(), QueryErrorChecker(),
+	Entity database.Mutator,
+]() db.MutatorRepository[Entity] {
+	return db.NewMutatorRepo[Entity](
+		Query(), QueryErrorChecker(),
 	)
 }
 
@@ -41,10 +40,10 @@ func MutatorRepo[
 // Returns:
 //   - ReaderRepo: A new ReaderRepo.
 func ReaderRepo[
-	Entity databasetypes.Getter,
-]() repositorytypes.ReaderRepo[Entity] {
-	return repository.NewReaderRepo[Entity](
-		QueryBuilder(), QueryErrorChecker(),
+	Entity database.Getter,
+]() db.ReaderRepository[Entity] {
+	return db.NewReaderRepo[Entity](
+		Query(), QueryErrorChecker(),
 	)
 }
 
@@ -52,14 +51,14 @@ func ReaderRepo[
 //
 // Returns:
 //   - RawQueryer: A new RawQueryer.
-func RawQueryer() repositorytypes.RawQueryer {
-	return repository.NewRawQueryer()
+func RawQueryer() db.RawQueryer {
+	return db.NewRawQueryer()
 }
 
 // TxManager returns a new TxManager.
 //
 // Returns:
 //   - TxManager: A new TxManager.
-func TxManager[T any]() repositorytypes.TxManager[T] {
-	return repository.NewTxManager[T]()
+func TxManager[T any]() db.TxManager[T] {
+	return db.NewTxManager[T]()
 }

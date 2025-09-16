@@ -5,10 +5,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	"github.com/pureapi/pureapi-core/server"
-	"github.com/pureapi/pureapi-core/util"
-	"github.com/pureapi/pureapi-core/util/types"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	"github.com/aatuh/pureapi-core/server"
 	"github.com/pureapi/pureapi-util/envvar"
 )
 
@@ -66,16 +65,15 @@ func NewServerConfig() *ServerConfig {
 //
 // Returns:
 //   - error: An error if the server fails to start.
-func StartServer(endpoints []endpointtypes.Endpoint) error {
+func StartServer(endpoints []endpoint.Endpoint) error {
 	timeStart := time.Now().UTC()
 	traceID := (&UUIDGen{}).MustRandom().String()
 	spanID := (&UUIDGen{}).MustRandom().String()
-	eventEmitter := util.NewEventEmitter().
-		RegisterGlobalListener(
-			func(event *types.Event) {
-				logServerEvent(event, timeStart, traceID, spanID)
-			},
-		)
+	eventEmitter := event.
+		NewEventEmitter().
+		RegisterGlobalListener(func(event *event.Event) {
+			logServerEvent(event, timeStart, traceID, spanID)
+		})
 
 	serverHandler := server.NewHandler(EmitterLogger(eventEmitter))
 	err := server.StartServer(
@@ -96,15 +94,15 @@ func StartServer(endpoints []endpointtypes.Endpoint) error {
 //
 // Parameters:
 //   - endpoints: The endpoints to serve.
-func MustStartServer(endpoints []endpointtypes.Endpoint) {
+func MustStartServer(endpoints []endpoint.Endpoint) {
 	if err := StartServer(endpoints); err != nil {
 		panic(fmt.Errorf("MustStartServer: %w", err))
 	}
 }
 
-// logServerEvent logs a server event.
+// logServerEvent logs server events.
 func logServerEvent(
-	event *types.Event, timeStart time.Time, traceID string, spanID string,
+	event *event.Event, timeStart time.Time, traceID string, spanID string,
 ) {
 	switch event.Type {
 	case server.EventPanic:

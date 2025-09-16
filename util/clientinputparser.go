@@ -23,7 +23,7 @@ const (
 // populate the URL parameters, headers, cookies, and body based on the
 // struct tags. E.g. the struct field `source: url` will be placed in the URL.
 // It will return an error if the input is not a struct or a pointer to a
-// struct. If the input is nil, it will return a new RequestData object.
+// struct. If the input is nil, it will return a new empty RequestData object.
 //
 // Example:
 //
@@ -81,10 +81,10 @@ type RequestData struct {
 // NewRequestData returns a new instance of RequestData.
 func NewRequestData() *RequestData {
 	return &RequestData{
-		URLParameters: make(map[string]any),
-		Headers:       make(map[string]string),
-		Cookies:       make([]http.Cookie, 0),
-		Body:          make(map[string]any),
+		URLParameters: nil,
+		Headers:       nil,
+		Cookies:       nil,
+		Body:          nil,
 	}
 }
 
@@ -108,12 +108,6 @@ func (d *RequestData) PlaceField(
 	fieldName := d.determineFieldName(
 		fieldInfo.Tag.Get(jsonTag), fieldInfo.Name,
 	)
-	if fieldName == "" {
-		return fmt.Errorf(
-			"ProcessField: json tag cannot be empty for field %s",
-			fieldInfo.Name,
-		)
-	}
 	return d.placeFieldValue(placement, fieldName, d.fieldValue(field))
 }
 
@@ -136,7 +130,7 @@ func (d *RequestData) determineFieldName(
 ) string {
 	json := strings.Split(jsonTag, ",")[0]
 	if json == "" {
-		json = fieldName
+		return fieldName
 	}
 	return json
 }
@@ -165,12 +159,24 @@ func (d *RequestData) placeFieldValue(
 ) error {
 	switch placement {
 	case tagURL:
+		if d.URLParameters == nil {
+			d.URLParameters = map[string]any{}
+		}
 		d.URLParameters[field] = value
 	case tagBody:
+		if d.Body == nil {
+			d.Body = map[string]any{}
+		}
 		d.Body[field] = value
 	case tagHeader, tagHeaders:
+		if d.Headers == nil {
+			d.Headers = map[string]string{}
+		}
 		d.Headers[field] = fmt.Sprintf("%v", value)
 	case tagCookie, tagCookies:
+		if d.Cookies == nil {
+			d.Cookies = []http.Cookie{}
+		}
 		d.Cookies = append(d.Cookies, http.Cookie{
 			Name:  field,
 			Value: fmt.Sprintf("%v", value),

@@ -3,43 +3,57 @@ package setup
 import (
 	"context"
 	"errors"
+	"net/http"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/crud/services"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/db/input"
-	querytypes "github.com/pureapi/pureapi-framework/db/query/types"
-	"github.com/pureapi/pureapi-framework/defaults"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
-	"github.com/pureapi/pureapi-framework/util/apimapper"
-	apimappertypes "github.com/pureapi/pureapi-framework/util/apimapper/types"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	apidb "github.com/aatuh/pureapi-framework/api/db"
+	"github.com/aatuh/pureapi-framework/api/input"
+	"github.com/aatuh/pureapi-framework/crud/services"
+	"github.com/aatuh/pureapi-framework/db"
+	"github.com/aatuh/pureapi-framework/defaults"
+	"github.com/aatuh/pureapi-framework/util/inpututil"
 )
 
-type DefaultGetInput struct {
-	Selectors input.Selectors `json:"selectors"`
-	Orders    input.Orders    `json:"orders"`
-	Page      *input.Page     `json:"page"`
-	Count     bool            `json:"count"`
+// GetHandler is the handler interface for the get endpoint.
+type GetHandler interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i *services.GetInputer,
+	) (any, error)
 }
 
+// DefaultGetInput is the default input for the get endpoint.
+type DefaultGetInput struct {
+	Selectors apidb.APISelectors `json:"selectors"`
+	Orders    apidb.Orders       `json:"orders"`
+	Page      *apidb.Page        `json:"page"`
+	Count     bool               `json:"count"`
+}
+
+// NewGetInput returns a new DefaultGetInput.
 func NewGetInput() *DefaultGetInput {
 	return &DefaultGetInput{}
 }
 
-func (i *DefaultGetInput) GetSelectors() input.Selectors { return i.Selectors }
-func (i *DefaultGetInput) GetOrders() input.Orders       { return i.Orders }
-func (i *DefaultGetInput) GetPage() *input.Page          { return i.Page }
-func (i *DefaultGetInput) GetCount() bool                { return i.Count }
+// GetSelectors returns the selectors for the get db.
+func (i *DefaultGetInput) GetSelectors() apidb.APISelectors { return i.Selectors }
 
-type DefaultGetOutput[Entity databasetypes.Getter] struct {
+// GetOrders returns the orders for the get db.
+func (i *DefaultGetInput) GetOrders() apidb.Orders { return i.Orders }
+
+// GetPage returns the page for the get db.
+func (i *DefaultGetInput) GetPage() *apidb.Page { return i.Page }
+
+// GetCount returns the count for the get db.
+func (i *DefaultGetInput) GetCount() bool { return i.Count }
+
+type DefaultGetOutput[Entity database.Getter] struct {
 	Entities []Entity `json:"entities"`
 	Count    int      `json:"count"`
 }
 
-func NewDefaultGetOutput[Entity databasetypes.Getter]() *DefaultGetOutput[Entity] {
+func NewDefaultGetOutput[Entity database.Getter]() *DefaultGetOutput[Entity] {
 	return &DefaultGetOutput[Entity]{}
 }
 
@@ -47,30 +61,30 @@ func (o *DefaultGetOutput[Entity]) SetEntities(entities []Entity) { o.Entities =
 func (o *DefaultGetOutput[Entity]) SetCount(count int)            { o.Count = count }
 
 // GetConfig holds the configuration for the get endpoint.
-type GetConfig[Entity databasetypes.Getter] struct {
+type GetConfig[Entity database.Getter] struct {
 	// Default config for the get input handler.
 	DefaultInputHandlerConfig *DefaultGetInputHandlerConfig
 	// Override for the get input handler.
-	InputHandlerFactoryFn func() endpointtypes.InputHandler[crudtypes.GetInputer]
+	InputHandlerFactoryFn func() endpoint.InputHandler[services.GetInputer]
 
 	// Default config for the get handler logic.
 	DefaultHandlerLogicConfig *DefaultGetHandlerLogicConfig[Entity]
 	// Override for the get handler logic.
-	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[crudtypes.GetInputer]
+	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[services.GetInputer]
 
-	ErrorHandlerFactoryFn  func() endpointtypes.ErrorHandler
-	OutputHandlerFactoryFn func() endpointtypes.OutputHandler
+	ErrorHandlerFactoryFn  func() endpoint.ErrorHandler
+	OutputHandlerFactoryFn func() endpoint.OutputHandler
 }
 
 // Validate validates and sets defaults for the get config.
 // It returns a new config with the defaults set.
 func (cfg *GetConfig[Entity]) Validate(
 	systemID string,
-	emitterLogger utiltypes.EmitterLogger,
+	emitterLogger event.EmitterLogger,
 	conversionRules map[string]func(any) any,
 	customRules map[string]func(any) error,
-	connFn repositorytypes.ConnFn,
-	apiToDBFields apimappertypes.APIToDBFields,
+	connFn db.ConnFn,
+	apiToDBFields inpututil.APIToDBFields,
 ) (*GetConfig[Entity], error) {
 	newCfg := *cfg
 
@@ -87,16 +101,16 @@ func (cfg *GetConfig[Entity]) Validate(
 	}
 	newCfg.InputHandlerFactoryFn = withDefaultFactory(
 		newCfg.InputHandlerFactoryFn,
-		func() endpointtypes.InputHandler[crudtypes.GetInputer] {
-			return apimapper.NewMapInputHandler(
+		func() endpoint.InputHandler[services.GetInputer] {
+			return input.NewMapInputHandler(
 				newCfg.DefaultInputHandlerConfig.APIFields,
 				conversionRules,
 				customRules,
-				func() *crudtypes.GetInputer {
+				func() *services.GetInputer {
 					inp := newCfg.DefaultInputHandlerConfig.InputFactoryFn()
 					return &inp
 				},
-			)
+			).MustValidateAPIFields()
 		},
 	)
 
@@ -114,7 +128,7 @@ func (cfg *GetConfig[Entity]) Validate(
 	}
 	newCfg.HandlerLogicFnFactoryFn = withDefaultFactory(
 		newCfg.HandlerLogicFnFactoryFn,
-		func() endpoint.HandlerLogicFn[crudtypes.GetInputer] {
+		func() endpoint.HandlerLogicFn[services.GetInputer] {
 			return DefaultGetHandler(
 				connFn,
 				newCfg.DefaultHandlerLogicConfig.ReaderRepo,
@@ -141,20 +155,20 @@ func (cfg *GetConfig[Entity]) Validate(
 }
 
 // DefaultGetHandler sets up an endpoint handler for the get operation.
-func DefaultGetHandler[Entity databasetypes.Getter](
-	connFn repositorytypes.ConnFn,
-	readerRepo repositorytypes.ReaderRepo[Entity],
-	txManager repositorytypes.TxManager[Entity],
-	entityFn func(opts ...querytypes.EntityOption[Entity]) Entity,
-	apiToDBFields apimappertypes.APIToDBFields,
-	outputFactoryFn func() crudtypes.GetOutputer[Entity],
-	beforeCallback crudtypes.BeforeGetCallback,
+func DefaultGetHandler[Entity database.Getter](
+	connFn db.ConnFn,
+	readerRepo db.ReaderRepository[Entity],
+	txManager db.TxManager[Entity],
+	entityFn func(opts ...db.EntityOption[Entity]) Entity,
+	apiToDBFields inpututil.APIToDBFields,
+	outputFactoryFn func() services.GetOutputer[Entity],
+	beforeCallback services.BeforeGetCallback,
 	afterGetFn services.AfterGet[Entity],
-) crudtypes.GetHandler {
+) *services.GetHandler[Entity] {
 	return services.NewGetHandler(
 		func(
-			input *crudtypes.GetInputer,
-		) (*crudtypes.ParsedGetEndpointInput, error) {
+			input *services.GetInputer,
+		) (*services.ParsedGetEndpointInput, error) {
 			i := *input
 			return services.ParseGetInput(
 				apiToDBFields,
@@ -167,8 +181,8 @@ func DefaultGetHandler[Entity databasetypes.Getter](
 		},
 		func(
 			ctx context.Context,
-			parsedInput *crudtypes.ParsedGetEndpointInput,
-			entityFactoryFn repositorytypes.GetterFactoryFn[Entity],
+			parsedInput *services.ParsedGetEndpointInput,
+			entityFactoryFn db.GetterFactoryFn[Entity],
 		) ([]Entity, int, error) {
 			return services.GetInvoke(
 				ctx,
@@ -182,7 +196,7 @@ func DefaultGetHandler[Entity databasetypes.Getter](
 		},
 		func(
 			entities []Entity, count int,
-		) (crudtypes.GetOutputer[Entity], error) {
+		) (services.GetOutputer[Entity], error) {
 			output := outputFactoryFn()
 			output.SetEntities(entities)
 			output.SetCount(count)
@@ -196,8 +210,8 @@ func DefaultGetHandler[Entity databasetypes.Getter](
 // DefaultGetInputHandlerConfig holds the default configuration for the get
 // input handler.
 type DefaultGetInputHandlerConfig struct {
-	APIFields      apimapper.APIFields
-	InputFactoryFn func() crudtypes.GetInputer
+	APIFields      input.APIFields
+	InputFactoryFn func() services.GetInputer
 }
 
 // Validate validates and sets defaults for the get input handler config.
@@ -205,7 +219,7 @@ type DefaultGetInputHandlerConfig struct {
 func (cfg *DefaultGetInputHandlerConfig) Validate() (*DefaultGetInputHandlerConfig, error) {
 	newCfg := *cfg
 	if newCfg.InputFactoryFn == nil {
-		newCfg.InputFactoryFn = func() crudtypes.GetInputer {
+		newCfg.InputFactoryFn = func() services.GetInputer {
 			return NewGetInput()
 		}
 	}
@@ -214,13 +228,13 @@ func (cfg *DefaultGetInputHandlerConfig) Validate() (*DefaultGetInputHandlerConf
 
 // DefaultGetHandlerLogicConfig holds the default configuration for the get
 // handler logic.
-type DefaultGetHandlerLogicConfig[Entity databasetypes.Getter] struct {
-	OutputFactoryFn func() crudtypes.GetOutputer[Entity]
-	BeforeCallback  crudtypes.BeforeGetCallback
+type DefaultGetHandlerLogicConfig[Entity database.Getter] struct {
+	OutputFactoryFn func() services.GetOutputer[Entity]
+	BeforeCallback  services.BeforeGetCallback
 	AfterGetFn      services.AfterGet[Entity]
-	EntityFn        func(...querytypes.EntityOption[Entity]) Entity
-	TxManager       repositorytypes.TxManager[Entity]
-	ReaderRepo      repositorytypes.ReaderRepo[Entity]
+	EntityFn        func(...db.EntityOption[Entity]) Entity
+	TxManager       db.TxManager[Entity]
+	ReaderRepo      db.ReaderRepository[Entity]
 }
 
 // Validate validates and sets defaults for the get handler logic config.
@@ -228,7 +242,7 @@ type DefaultGetHandlerLogicConfig[Entity databasetypes.Getter] struct {
 func (cfg *DefaultGetHandlerLogicConfig[Entity]) Validate() (*DefaultGetHandlerLogicConfig[Entity], error) {
 	newCfg := *cfg
 	if newCfg.OutputFactoryFn == nil {
-		newCfg.OutputFactoryFn = func() crudtypes.GetOutputer[Entity] {
+		newCfg.OutputFactoryFn = func() services.GetOutputer[Entity] {
 			return NewDefaultGetOutput[Entity]()
 		}
 	}

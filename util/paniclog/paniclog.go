@@ -8,8 +8,8 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/util/httpwrap"
+	"github.com/aatuh/pureapi-core/logging"
+	"github.com/aatuh/pureapi-framework/util/httpwrap"
 )
 
 // responseData is a simplified copy of the response details.
@@ -50,7 +50,7 @@ type panicData struct {
 // PanicLog handles panics and logs details about the cause of the
 // panic, request and response.
 type PanicLog struct {
-	ctxLoggerFactoryFn   types.CtxLoggerFactoryFn
+	ctxLoggerFactoryFn   logging.CtxLoggerFactoryFn
 	maxDumpPartSize      int64
 	getResponseWrapperFn func(*http.Request) httpwrap.ResWrap
 }
@@ -65,7 +65,7 @@ type PanicLog struct {
 // Returns:
 //   - *PanicLog: A new PanicLog instance.
 func NewPanicLog(
-	ctxLoggerFactoryFn types.CtxLoggerFactoryFn,
+	ctxLoggerFactoryFn logging.CtxLoggerFactoryFn,
 	maxDumpPartSize int64,
 	getResponseWrapperFn func(*http.Request) httpwrap.ResWrap,
 ) *PanicLog {

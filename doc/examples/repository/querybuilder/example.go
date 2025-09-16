@@ -5,13 +5,13 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/pureapi/pureapi-core/database/types"
-	coreexamples "github.com/pureapi/pureapi-core/doc/examples"
-	repositoryexamples "github.com/pureapi/pureapi-framework/doc/examples/repository"
-	repotypes "github.com/pureapi/pureapi-framework/repository/types"
+	"github.com/aatuh/pureapi-core/database"
+	coreexamples "github.com/aatuh/pureapi-core/doc/examples"
+	"github.com/aatuh/pureapi-framework/db"
+	repositoryexamples "github.com/aatuh/pureapi-framework/doc/examples/repository"
 )
 
-// This example demonstrates the usage of the QueryBuilder interface. It creates
+// This example demonstrates the usage of the Query interface. It creates
 // a database table using a custom SchemaManager implementation.
 func main() {
 	// Connect to the database.
@@ -32,10 +32,10 @@ func main() {
 // implementation and run custom SQL queries without the need for a repository.
 //
 // Parameters:
-//   - db: The database handle.
-func CreateTable(db types.DB) {
+//   - dbh: The database handle.
+func CreateTable(dbh database.DB) {
 	schemaManager := &repositoryexamples.SimpleSchemaManager{}
-	columns := []repotypes.ColumnDefinition{
+	columns := []db.ColumnDefinition{
 		{
 			Name:          "id",
 			Type:          "INTEGER",
@@ -50,13 +50,13 @@ func CreateTable(db types.DB) {
 		},
 	}
 	createTableQuery, _, err := schemaManager.CreateTableQuery(
-		"users", true, columns, nil, repotypes.TableOptions{},
+		"users", true, columns, nil, db.TableOptions{},
 	)
 	if err != nil {
 		log.Printf("Create table query error: %v", err)
 		return
 	}
-	if _, err = db.Exec(createTableQuery); err != nil {
+	if _, err = dbh.Exec(createTableQuery); err != nil {
 		log.Printf("Create table execution error: %v", err)
 		return
 	}

@@ -3,42 +3,48 @@ package setup
 import (
 	"context"
 	"errors"
+	"net/http"
 
-	databasetypes "github.com/pureapi/pureapi-core/database/types"
-	"github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/crud/services"
-	crudtypes "github.com/pureapi/pureapi-framework/crud/types"
-	"github.com/pureapi/pureapi-framework/defaults"
-	repositorytypes "github.com/pureapi/pureapi-framework/repository/types"
-	"github.com/pureapi/pureapi-framework/util/apimapper"
+	"github.com/aatuh/pureapi-core/database"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/event"
+	"github.com/aatuh/pureapi-framework/api/input"
+	"github.com/aatuh/pureapi-framework/crud/services"
+	"github.com/aatuh/pureapi-framework/db"
+	"github.com/aatuh/pureapi-framework/defaults"
 )
 
+// CreateHandler is the handler interface for the create endpoint.
+type CreateHandler[Entity database.Mutator] interface {
+	Handle(
+		w http.ResponseWriter, r *http.Request, i *services.CreateInputer[Entity],
+	) (any, error)
+}
+
 // CreateConfig holds the configuration for the create endpoint.
-type CreateConfig[Entity databasetypes.Mutator] struct {
+type CreateConfig[Entity database.Mutator] struct {
 	// Default config for the create input handler.
 	DefaultInputHandlerConfig *DefaultCreateInputHandlerConfig[Entity]
 	// Override config for the create handler logic.
-	InputHandlerFactoryFn func() endpointtypes.InputHandler[crudtypes.CreateInputer[Entity]]
+	InputHandlerFactoryFn func() endpoint.InputHandler[services.CreateInputer[Entity]]
 
 	// Default config for the create handler logic.
 	DefaultHandlerLogicConfig *DefaultCreateHandlerLogicConfig[Entity]
 	// Override for the create handler logic.
-	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[crudtypes.CreateInputer[Entity]]
+	HandlerLogicFnFactoryFn func() endpoint.HandlerLogicFn[services.CreateInputer[Entity]]
 
-	ErrorHandlerFactoryFn  func() endpointtypes.ErrorHandler
-	OutputHandlerFactoryFn func() endpointtypes.OutputHandler
+	ErrorHandlerFactoryFn  func() endpoint.ErrorHandler
+	OutputHandlerFactoryFn func() endpoint.OutputHandler
 }
 
 // Validate validates and sets defaults for the create config.
 // It returns a new config with the defaults set.
 func (cfg *CreateConfig[Entity]) Validate(
 	systemID string,
-	emitterLogger utiltypes.EmitterLogger,
+	emitterLogger event.EmitterLogger,
 	conversionRules map[string]func(any) any,
 	customRules map[string]func(any) error,
-	connFn repositorytypes.ConnFn,
+	connFn db.ConnFn,
 ) (*CreateConfig[Entity], error) {
 	newCfg := *cfg
 
@@ -55,16 +61,16 @@ func (cfg *CreateConfig[Entity]) Validate(
 	}
 	newCfg.InputHandlerFactoryFn = withDefaultFactory(
 		newCfg.InputHandlerFactoryFn,
-		func() endpointtypes.InputHandler[crudtypes.CreateInputer[Entity]] {
-			return apimapper.NewMapInputHandler(
+		func() endpoint.InputHandler[services.CreateInputer[Entity]] {
+			return input.NewMapInputHandler(
 				newCfg.DefaultInputHandlerConfig.APIFields,
 				conversionRules,
 				customRules,
-				func() *crudtypes.CreateInputer[Entity] {
+				func() *services.CreateInputer[Entity] {
 					inp := newCfg.DefaultInputHandlerConfig.InputFactoryFn()
 					return &inp
 				},
-			)
+			).MustValidateAPIFields()
 		},
 	)
 
@@ -82,7 +88,7 @@ func (cfg *CreateConfig[Entity]) Validate(
 	}
 	newCfg.HandlerLogicFnFactoryFn = withDefaultFactory(
 		newCfg.HandlerLogicFnFactoryFn,
-		func() endpoint.HandlerLogicFn[crudtypes.CreateInputer[Entity]] {
+		func() endpoint.HandlerLogicFn[services.CreateInputer[Entity]] {
 			return DefaultCreateHandler(
 				connFn,
 				newCfg.DefaultHandlerLogicConfig.MutatorRepo,
@@ -107,17 +113,17 @@ func (cfg *CreateConfig[Entity]) Validate(
 }
 
 // DefaultCreateHandler sets up an endpoint handler for the create operation.
-func DefaultCreateHandler[Entity databasetypes.Mutator](
-	connFn repositorytypes.ConnFn,
-	mutatorRepo repositorytypes.MutatorRepo[Entity],
-	txManager repositorytypes.TxManager[Entity],
-	outputFactoryFn func() crudtypes.CreateOutputer[Entity],
-	beforeCallback crudtypes.BeforeCreateCallback[Entity],
+func DefaultCreateHandler[Entity database.Mutator](
+	connFn db.ConnFn,
+	mutatorRepo db.MutatorRepository[Entity],
+	txManager db.TxManager[Entity],
+	outputFactoryFn func() services.CreateOutputer[Entity],
+	beforeCallback services.BeforeCreateCallback[Entity],
 	afterCreateFn services.AfterCreate[Entity],
-) crudtypes.CreateHandler[Entity] {
+) *services.CreateHandler[Entity] {
 	return services.NewCreateHandler(
 		func(
-			ctx context.Context, input *crudtypes.CreateInputer[Entity],
+			ctx context.Context, input *services.CreateInputer[Entity],
 		) (Entity, error) {
 			return (*input).GetEntity(), nil
 		},
@@ -126,7 +132,7 @@ func DefaultCreateHandler[Entity databasetypes.Mutator](
 				ctx, connFn, entity, mutatorRepo, txManager, afterCreateFn,
 			)
 		},
-		func(entity Entity) (crudtypes.CreateOutputer[Entity], error) {
+		func(entity Entity) (services.CreateOutputer[Entity], error) {
 			output := outputFactoryFn()
 			output.SetEntities([]Entity{entity})
 			return output, nil
@@ -137,9 +143,9 @@ func DefaultCreateHandler[Entity databasetypes.Mutator](
 
 // DefaultCreateInputHandlerConfig holds the default configuration for the
 // create input handler.
-type DefaultCreateInputHandlerConfig[Entity databasetypes.Mutator] struct {
-	APIFields      apimapper.APIFields
-	InputFactoryFn func() crudtypes.CreateInputer[Entity]
+type DefaultCreateInputHandlerConfig[Entity database.Mutator] struct {
+	APIFields      input.APIFields
+	InputFactoryFn func() services.CreateInputer[Entity]
 }
 
 // Validate validates and sets defaults for the create input handler config.
@@ -156,12 +162,12 @@ func (cfg *DefaultCreateInputHandlerConfig[Entity]) Validate() (*DefaultCreateIn
 
 // DefaultCreateHandlerLogicConfig holds the default configuration for the
 // create handler logic.
-type DefaultCreateHandlerLogicConfig[Entity databasetypes.Mutator] struct {
-	OutputFactoryFn func() crudtypes.CreateOutputer[Entity]
-	BeforeCallback  crudtypes.BeforeCreateCallback[Entity]
+type DefaultCreateHandlerLogicConfig[Entity database.Mutator] struct {
+	OutputFactoryFn func() services.CreateOutputer[Entity]
+	BeforeCallback  services.BeforeCreateCallback[Entity]
 	AfterCallback   services.AfterCreate[Entity]
-	TxManager       repositorytypes.TxManager[Entity]
-	MutatorRepo     repositorytypes.MutatorRepo[Entity]
+	TxManager       db.TxManager[Entity]
+	MutatorRepo     db.MutatorRepository[Entity]
 }
 
 // Validate validates and sets defaults for the create handler logic config.

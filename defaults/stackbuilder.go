@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/pureapi/pureapi-core/endpoint"
-	endpointtypes "github.com/pureapi/pureapi-core/endpoint/types"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/middleware"
-	"github.com/pureapi/pureapi-framework/middleware/types"
-	"github.com/pureapi/pureapi-framework/util/httpwrap"
-	"github.com/pureapi/pureapi-framework/util/paniclog"
+	"github.com/aatuh/pureapi-core/endpoint"
+	"github.com/aatuh/pureapi-core/logging"
+	"github.com/aatuh/pureapi-framework/api/middleware"
+	"github.com/aatuh/pureapi-framework/util/httpwrap"
+	"github.com/aatuh/pureapi-framework/util/paniclog"
 	"github.com/pureapi/pureapi-util/envvar"
 )
 
@@ -75,7 +73,7 @@ func NewStackConfig() *StackConfig {
 
 // StackBuilder builds a middleware stack.
 type StackBuilder struct {
-	stack endpointtypes.Stack
+	stack endpoint.Stack
 }
 
 // NewStackBuilder returns a default stack builder.
@@ -90,7 +88,7 @@ func NewStackBuilder() *StackBuilder {
 					return (&UUIDGen{}).MustRandom().String()
 				},
 				extractOrGenerateSpanID,
-				func(ctx context.Context) utiltypes.ILogger {
+				func(ctx context.Context) logging.ILogger {
 					return CtxLogger(ctx)
 				},
 			),
@@ -101,8 +99,8 @@ func NewStackBuilder() *StackBuilder {
 // Build returns a new stack from the builder.
 //
 // Returns:
-//   - endpointtypes.Stack: The new stack.
-func (b *StackBuilder) Build() endpointtypes.Stack {
+//   - endpoint.Stack: The new stack.
+func (b *StackBuilder) Build() endpoint.Stack {
 	newStack := b.stack.Clone()
 	return newStack
 }
@@ -123,8 +121,8 @@ func (b *StackBuilder) Clone() *StackBuilder {
 //   - opts: The CORS options.
 //
 // Returns:
-//   - endpointtypes.Wrapper: The CORS wrapper.
-func CORSWrapper(opts *middleware.CORSOptions) endpointtypes.Wrapper {
+//   - endpoint.Wrapper: The CORS wrapper.
+func CORSWrapper(opts *middleware.CORSOptions) endpoint.Wrapper {
 	return endpoint.NewWrapper(CORSID, middleware.CORS(*opts))
 }
 
@@ -136,30 +134,36 @@ func CORSWrapper(opts *middleware.CORSOptions) endpointtypes.Wrapper {
 //   - loggerFactoryFn: The logger factory function.
 //
 // Returns:
-//   - endpointtypes.Wrapper: The reqhandler wrapper.
+//   - endpoint.Wrapper: The reqhandler wrapper.
 func ReqHandlerWrapper(
 	traceIDFn func(r *http.Request) string,
 	spanIDFn func(r *http.Request) string,
-	loggerFactoryFn utiltypes.CtxLoggerFactoryFn,
-) endpointtypes.Wrapper {
+	loggerFactoryFn logging.CtxLoggerFactoryFn,
+) endpoint.Wrapper {
 	return endpoint.NewWrapper(
 		ReqHandlerID,
 		middleware.ReqHandler(
-			traceIDFn,
-			spanIDFn,
-			loggerFactoryFn,
-			paniclog.NewPanicLog(
-				loggerFactoryFn,
-				maxPanicDumpPartSize,
-				func(r *http.Request) httpwrap.ResWrap {
-					return middleware.GetResponseWrapper(r)
+			&middleware.ReqHandlerOptions{
+				TraceIDFactoryFn:   traceIDFn,
+				SpanIDFactoryFn:    spanIDFn,
+				CtxLoggerFactoryFn: loggerFactoryFn,
+				PanicHandler: paniclog.NewPanicLog(
+					loggerFactoryFn,
+					maxPanicDumpPartSize,
+					func(r *http.Request) httpwrap.ResWrap {
+						return middleware.GetResponseWrapper(r)
+					},
+				),
+				ReqWrapFactoryFn: func(
+					r *http.Request,
+				) (middleware.ReqWrap, error) {
+					return httpwrap.NewReqWrap(r, maxRequestBodySize)
 				},
-			),
-			func(r *http.Request) (types.ReqWrap, error) {
-				return httpwrap.NewReqWrap(r, maxRequestBodySize)
-			},
-			func(w http.ResponseWriter) types.ResWrap {
-				return httpwrap.NewResWrap(w)
+				ResWrapFactoryFn: func(
+					w http.ResponseWriter,
+				) middleware.ResWrap {
+					return httpwrap.NewResWrap(w)
+				},
 			},
 		),
 	)

@@ -5,11 +5,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pureapi/pureapi-core/util"
-	utiltypes "github.com/pureapi/pureapi-core/util/types"
-	"github.com/pureapi/pureapi-framework/middleware"
+	"github.com/aatuh/pureapi-core/event"
+	"github.com/aatuh/pureapi-core/logging"
+	"github.com/aatuh/pureapi-framework/api/middleware"
 	"github.com/pureapi/pureapi-util/envvar"
-	"github.com/pureapi/pureapi-util/logging"
 )
 
 // EnvVarConfig holds the names of the environment variables used.
@@ -90,7 +89,7 @@ func NewLoggingConfig() *LoggingConfig {
 // Parameters:
 //   - factory: The logger factory.
 func SetLoggerFactory(
-	factory func(ctx context.Context) utiltypes.ILogger,
+	factory func(ctx context.Context) logging.ILogger,
 ) {
 	if factory == nil {
 		return
@@ -110,11 +109,9 @@ func ResetLoggerFactory() {
 //
 // Returns:
 //   - ILogger: The logger.
-func CtxLogger(ctx context.Context) utiltypes.ILogger {
-	factory, ok := loggerFactory.
-		Load().(func(context.Context) utiltypes.ILogger)
+func CtxLogger(ctx context.Context) logging.ILogger {
+	factory, ok := loggerFactory.Load().(func(context.Context) logging.ILogger)
 	if !ok {
-		// Fallback to the default if something unexpected occurs.
 		factory = defaultCTXLogger
 	}
 	return factory(ctx)
@@ -129,9 +126,9 @@ func CtxLogger(ctx context.Context) utiltypes.ILogger {
 // Returns:
 //   - LoggerFactoryFn: The wrapped logger factory.
 func WrapCtxLoggerFactory(
-	factoryFn utiltypes.CtxLoggerFactoryFn,
-) utiltypes.LoggerFactoryFn {
-	return func(params ...any) utiltypes.ILogger {
+	factoryFn logging.CtxLoggerFactoryFn,
+) logging.LoggerFactoryFn {
+	return func(params ...any) logging.ILogger {
 		var ctx context.Context
 		if len(params) > 0 {
 			if c, ok := params[0].(context.Context); ok {
@@ -151,7 +148,7 @@ func WrapCtxLoggerFactory(
 //   - factory: The LoggerPlain factory.
 func SetLoggerPlainFactory(factory func(
 	startTime time.Time, traceID string, spanID string,
-) utiltypes.ILogger,
+) logging.ILogger,
 ) {
 	if factory == nil {
 		return
@@ -175,9 +172,9 @@ func ResetLoggerPlainFactory() {
 //   - ILogger: The logger.
 func LoggerPlain(
 	startTime time.Time, traceID string, spanID string,
-) utiltypes.ILogger {
+) logging.ILogger {
 	factory, ok := loggerPlainFactory.
-		Load().(func(time.Time, string, string) utiltypes.ILogger)
+		Load().(func(time.Time, string, string) logging.ILogger)
 	if !ok {
 		factory = defaultLoggerPlain
 	}
@@ -189,7 +186,7 @@ func LoggerPlain(
 // Parameters:
 //   - factory: The EmitterLogger factory.
 func SetEmitterLoggerFactory(
-	factory func([]utiltypes.EventEmitter) utiltypes.EmitterLogger,
+	factory func([]event.EventEmitter) event.EmitterLogger,
 ) {
 	if factory == nil {
 		return
@@ -210,10 +207,10 @@ func ResetEmitterLoggerFactory() {
 // Returns:
 //   - EmitterLogger: The emitter logger.
 func EmitterLogger(
-	eventEmitter ...utiltypes.EventEmitter,
-) utiltypes.EmitterLogger {
+	eventEmitter ...event.EventEmitter,
+) event.EmitterLogger {
 	factory, ok := emitterLoggerFactory.
-		Load().(func([]utiltypes.EventEmitter) utiltypes.EmitterLogger)
+		Load().(func([]event.EventEmitter) event.EmitterLogger)
 	if !ok {
 		factory = defaultEmitterLogger
 	}
@@ -221,34 +218,34 @@ func EmitterLogger(
 }
 
 // defaultCTXLogger is the default implementation of the logger factory.
-func defaultCTXLogger(ctx context.Context) utiltypes.ILogger {
+func defaultCTXLogger(ctx context.Context) logging.ILogger {
 	opts := defaultLogOpts(func(ctx context.Context) *logging.ExtraData {
 		return extraData(ctx)
 	})
-	return logging.NewContextLogger(ctx, opts)
+	return logging.NewCtxLogger(ctx, opts)
 }
 
 // defaultLoggerPlain is the default implementation for LoggerPlain.
 func defaultLoggerPlain(
 	startTime time.Time, traceID string, spanID string,
-) utiltypes.ILogger {
+) logging.ILogger {
 	opts := defaultLogOpts(func(ctx context.Context) *logging.ExtraData {
 		return nonCtxExtraData(startTime, traceID, spanID)
 	})
-	return logging.NewContextLogger(context.Background(), opts)
+	return logging.NewCtxLogger(context.Background(), opts)
 }
 
 // defaultEmitterLogger is the default implementation for EmitterLogger.
 func defaultEmitterLogger(
-	eventEmitter []utiltypes.EventEmitter,
-) utiltypes.EmitterLogger {
-	var useEventEmitter utiltypes.EventEmitter
+	eventEmitter []event.EventEmitter,
+) event.EmitterLogger {
+	var useEventEmitter event.EventEmitter
 	if len(eventEmitter) > 0 && eventEmitter[0] != nil {
 		useEventEmitter = eventEmitter[0]
 	} else {
-		useEventEmitter = util.NewEventEmitter()
+		useEventEmitter = event.NewEventEmitter()
 	}
-	return util.NewEmitterLogger(
+	return event.NewEmitterLogger(
 		useEventEmitter,
 		WrapCtxLoggerFactory(CtxLogger),
 	)

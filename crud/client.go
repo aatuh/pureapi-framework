@@ -4,16 +4,17 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/pureapi/pureapi-framework/crud/setup"
-	"github.com/pureapi/pureapi-framework/jsonapi"
+	"github.com/aatuh/pureapi-framework/api/json"
+	"github.com/aatuh/pureapi-framework/crud/setup"
+	"github.com/aatuh/pureapi-framework/defaults"
 )
 
 // DefaultClients groups the CRUD clients into a single struct.
 type DefaultClients[CreateInput any, CreateOutput any, GetOutput any] struct {
-	Create *CreateClient[CreateInput, jsonapi.APIOutput[CreateOutput]]
-	Get    *GetClient[setup.DefaultGetInput, jsonapi.APIOutput[GetOutput]]
-	Update *UpdateClient[setup.DefaultUpdateInput, jsonapi.APIOutput[setup.DefaultUpdateOutput]]
-	Delete *DeleteClient[setup.DefaultDeleteInput, jsonapi.APIOutput[setup.DefaultDeleteOutput]]
+	Create *CreateClient[CreateInput, json.APIOutput[CreateOutput]]
+	Get    *GetClient[setup.DefaultGetInput, json.APIOutput[GetOutput]]
+	Update *UpdateClient[setup.DefaultUpdateInput, json.APIOutput[setup.DefaultUpdateOutput]]
+	Delete *DeleteClient[setup.DefaultDeleteInput, json.APIOutput[setup.DefaultDeleteOutput]]
 }
 
 // NewDefaultClients creates a new set of CRUD clients for the given URL.
@@ -22,10 +23,10 @@ func NewDefaultClients[CreateInput any, CreateOutput any, GetOutput any](
 ) *DefaultClients[CreateInput, CreateOutput, GetOutput] {
 	crudClient := NewDefaultClient(url)
 	return &DefaultClients[CreateInput, CreateOutput, GetOutput]{
-		Create: NewCreateClient[CreateInput, jsonapi.APIOutput[CreateOutput]](crudClient),
-		Get:    NewGetClient[setup.DefaultGetInput, jsonapi.APIOutput[GetOutput]](crudClient),
-		Update: NewUpdateClient[setup.DefaultUpdateInput, jsonapi.APIOutput[setup.DefaultUpdateOutput]](crudClient),
-		Delete: NewDeleteClient[setup.DefaultDeleteInput, jsonapi.APIOutput[setup.DefaultDeleteOutput]](crudClient),
+		Create: NewCreateClient[CreateInput, json.APIOutput[CreateOutput]](crudClient),
+		Get:    NewGetClient[setup.DefaultGetInput, json.APIOutput[GetOutput]](crudClient),
+		Update: NewUpdateClient[setup.DefaultUpdateInput, json.APIOutput[setup.DefaultUpdateOutput]](crudClient),
+		Delete: NewDeleteClient[setup.DefaultDeleteInput, json.APIOutput[setup.DefaultDeleteOutput]](crudClient),
 	}
 }
 
@@ -54,9 +55,9 @@ func NewCreateClient[Input, Output any](
 // Send sends a create request using the strongly typed input and output.
 func (c *CreateClient[Input, Output]) Send(
 	ctx context.Context, host string, input *Input,
-) (*jsonapi.Response[Output], error) {
-	return jsonapi.SendRequest[Input, Output](
-		ctx, host, c.url, http.MethodPost, input,
+) (*json.Response[Output], error) {
+	return json.SendRequest[Input, Output](
+		ctx, host, c.url, http.MethodPost, input, defaults.CtxLogger,
 	)
 }
 
@@ -75,9 +76,9 @@ func NewGetClient[Input any, Output any](
 // Send sends a get request using the strongly typed input and output.
 func (c *GetClient[Input, Output]) Send(
 	ctx context.Context, host string, input *Input,
-) (*jsonapi.Response[Output], error) {
-	return jsonapi.SendRequest[Input, Output](
-		ctx, host, c.url, http.MethodGet, input,
+) (*json.Response[Output], error) {
+	return json.SendRequest[Input, Output](
+		ctx, host, c.url, http.MethodGet, input, defaults.CtxLogger,
 	)
 }
 
@@ -96,9 +97,9 @@ func NewUpdateClient[Input any, Output any](
 // Send sends an update request using the strongly typed input and output.
 func (c *UpdateClient[Input, Output]) Send(
 	ctx context.Context, host string, input *Input,
-) (*jsonapi.Response[Output], error) {
-	return jsonapi.SendRequest[Input, Output](
-		ctx, host, c.url, http.MethodPut, input,
+) (*json.Response[Output], error) {
+	return json.SendRequest[Input, Output](
+		ctx, host, c.url, http.MethodPut, input, defaults.CtxLogger,
 	)
 }
 
@@ -117,8 +118,8 @@ func NewDeleteClient[Input any, Output any](
 // Send sends a delete request using the strongly typed input and output.
 func (c *DeleteClient[Input, Output]) Send(
 	ctx context.Context, host string, input *Input,
-) (*jsonapi.Response[Output], error) {
-	return jsonapi.SendRequest[Input, Output](
-		ctx, host, c.url, http.MethodDelete, input,
+) (*json.Response[Output], error) {
+	return json.SendRequest[Input, Output](
+		ctx, host, c.url, http.MethodDelete, input, defaults.CtxLogger,
 	)
 }

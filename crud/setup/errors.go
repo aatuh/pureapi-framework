@@ -3,50 +3,50 @@ package setup
 import (
 	"net/http"
 
-	"github.com/pureapi/pureapi-framework/api/errors"
-	"github.com/pureapi/pureapi-framework/crud/services"
-	"github.com/pureapi/pureapi-framework/db/input"
-	"github.com/pureapi/pureapi-framework/db/query"
+	apidb "github.com/aatuh/pureapi-framework/api/db"
+	"github.com/aatuh/pureapi-framework/api/errutil"
+	"github.com/aatuh/pureapi-framework/crud/services"
+	"github.com/aatuh/pureapi-framework/db"
 )
 
-func CreateErrors() errors.ExpectedErrors {
-	return []errors.ExpectedError{
-		{ID: query.ErrDuplicateEntry.ID(), Status: http.StatusBadRequest, PublicData: false},
-		{ID: query.ErrForeignConstraint.ID(), Status: http.StatusBadRequest, PublicData: false},
+func CreateErrors() errutil.ExpectedErrors {
+	return []errutil.ExpectedError{
+		{ID: db.ErrDuplicateEntry.ID(), Status: http.StatusBadRequest, PublicData: false},
+		{ID: db.ErrForeignConstraint.ID(), Status: http.StatusBadRequest, PublicData: false},
 	}
 }
 
-func GetErrors() errors.ExpectedErrors {
-	return []errors.ExpectedError{
-		{ID: input.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidOrderField.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrMaxPageLimitExceeded.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: query.ErrNoRows.ID(), Status: http.StatusNotFound, PublicData: true},
+func GetErrors() errutil.ExpectedErrors {
+	return []errutil.ExpectedError{
+		{ID: apidb.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidOrderField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrMaxPageLimitExceeded.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: db.ErrNoRows.ID(), Status: http.StatusNotFound, PublicData: true},
 	}
 }
 
-func UpdateErrors() errors.ExpectedErrors {
-	return []errors.ExpectedError{
-		{ID: input.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
+func UpdateErrors() errutil.ExpectedErrors {
+	return []errutil.ExpectedError{
+		{ID: apidb.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
 		{ID: services.ErrNeedAtLeastOneSelector.ID(), Status: http.StatusBadRequest, PublicData: true},
 		{ID: services.ErrNeedAtLeastOneUpdate.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidOrderField.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: query.ErrDuplicateEntry.ID(), Status: http.StatusBadRequest, PublicData: false},
-		{ID: query.ErrForeignConstraint.ID(), Status: http.StatusBadRequest, PublicData: false},
-		{ID: input.ErrInvalidDatabaseSelectorTranslation.ID(), MaskedID: input.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidOrderField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: db.ErrDuplicateEntry.ID(), Status: http.StatusBadRequest, PublicData: false},
+		{ID: db.ErrForeignConstraint.ID(), Status: http.StatusBadRequest, PublicData: false},
+		{ID: apidb.ErrInvalidDatabaseSelectorTranslation.ID(), MaskedID: apidb.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
 	}
 }
 
-func DeleteErrors() errors.ExpectedErrors {
-	return []errors.ExpectedError{
-		{ID: input.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
+func DeleteErrors() errutil.ExpectedErrors {
+	return []errutil.ExpectedError{
+		{ID: apidb.ErrInvalidPredicate.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrPredicateNotAllowed.ID(), Status: http.StatusBadRequest, PublicData: true},
 		{ID: services.ErrNeedAtLeastOneSelector.ID(), Status: http.StatusBadRequest, PublicData: true},
-		{ID: input.ErrInvalidDatabaseSelectorTranslation.ID(), MaskedID: input.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
+		{ID: apidb.ErrInvalidDatabaseSelectorTranslation.ID(), MaskedID: apidb.ErrInvalidSelectorField.ID(), Status: http.StatusBadRequest, PublicData: true},
 	}
 }
