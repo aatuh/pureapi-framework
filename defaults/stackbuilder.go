@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/aatuh/envvar"
 	"github.com/aatuh/pureapi-core/endpoint"
 	"github.com/aatuh/pureapi-core/logging"
 	"github.com/aatuh/pureapi-framework/api/middleware"
 	"github.com/aatuh/pureapi-framework/util/httpwrap"
 	"github.com/aatuh/pureapi-framework/util/paniclog"
-	"github.com/pureapi/pureapi-util/envvar"
 )
 
 const (

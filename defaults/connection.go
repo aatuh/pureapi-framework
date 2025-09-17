@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/aatuh/envvar"
 	"github.com/aatuh/pureapi-core/database"
-	mysqlconfig "github.com/pureapi/pureapi-mysql/config"
-	sqliteconfig "github.com/pureapi/pureapi-sqlite/config"
-	"github.com/pureapi/pureapi-util/envvar"
 )
 
 // Supported database drivers.
@@ -100,7 +98,9 @@ func GetDBDriverName(cfg ...*database.ConnectConfig) string {
 	if len(cfg) > 0 && cfg[0] != nil {
 		return cfg[0].Driver
 	}
-	return envvar.MustGet(GetDatabaseEnvConfig().DatabaseDriver)
+	name := envvar.MustGet(GetDatabaseEnvConfig().DatabaseDriver)
+	setCurrentDriverName(name)
+	return name
 }
 
 // ConnectConfig returns a connection config based on environment variables.
@@ -117,17 +117,14 @@ func GetDBDriverName(cfg ...*database.ConnectConfig) string {
 func ConnectConfig() (*database.ConnectConfig, error) {
 	envCfg := GetDatabaseEnvConfig()
 	dbDriver := envvar.MustGet(envCfg.DatabaseDriver)
-	switch dbDriver {
-	case SQLite3:
-		return newSQLiteConfigFromEnv(envCfg).ConnectConfig(), nil
-	case MySQL:
-		mysqlCfg := newMySQLConfigFromEnv(envCfg)
-		return mysqlCfg.ConnectConfig(), nil
-	default:
+	provider, ok := getDriverProvider(dbDriver)
+	if !ok || provider.NewConfigFromEnv == nil {
 		return nil, fmt.Errorf(
-			"ConnectConfig: unknown database type: %s", dbDriver,
+			"ConnectConfig: no provider registered for driver: %s",
+			dbDriver,
 		)
 	}
+	return provider.NewConfigFromEnv(envCfg), nil
 }
 
 // GetMySQLConnection establishes a MySQL database connection.
@@ -146,9 +143,22 @@ func GetMySQLConnection(cfg ...*database.ConnectConfig) (database.DB, error) {
 	if len(cfg) > 0 && cfg[0] != nil {
 		useCfg = cfg[0]
 	} else {
-		useCfg = newMySQLConfigFromEnv(envCfg).ConnectConfig()
+		provider, ok := getDriverProvider(MySQL)
+		if !ok || provider.NewConfigFromEnv == nil {
+			return nil, fmt.Errorf(
+				"GetMySQLConnection: no provider registered for driver: %s",
+				MySQL,
+			)
+		}
+		useCfg = provider.NewConfigFromEnv(envCfg)
 	}
-	dsn, err := mysqlconfig.DSN(*useCfg)
+	provider, ok := getDriverProvider(MySQL)
+	if !ok || provider.DSN == nil {
+		return nil, fmt.Errorf(
+			"GetMySQLConnection: no DSN function for driver: %s", MySQL,
+		)
+	}
+	dsn, err := provider.DSN(*useCfg)
 	if err != nil {
 		return nil, fmt.Errorf("GetMySQLConnection: %w", err)
 	}
@@ -171,9 +181,22 @@ func GetSQLiteConnection(cfg ...*database.ConnectConfig) (database.DB, error) {
 	if len(cfg) > 0 && cfg[0] != nil {
 		useCfg = cfg[0]
 	} else {
-		useCfg = newSQLiteConfigFromEnv(envCfg).ConnectConfig()
+		provider, ok := getDriverProvider(SQLite3)
+		if !ok || provider.NewConfigFromEnv == nil {
+			return nil, fmt.Errorf(
+				"GetSQLiteConnection: no provider registered for driver: %s",
+				SQLite3,
+			)
+		}
+		useCfg = provider.NewConfigFromEnv(envCfg)
 	}
-	dsn, err := sqliteconfig.DSN(*useCfg)
+	provider, ok := getDriverProvider(SQLite3)
+	if !ok || provider.DSN == nil {
+		return nil, fmt.Errorf(
+			"GetSQLiteConnection: no DSN function for driver: %s", SQLite3,
+		)
+	}
+	dsn, err := provider.DSN(*useCfg)
 	if err != nil {
 		return nil, fmt.Errorf("GetSQLiteConnection: %w", err)
 	}
@@ -190,7 +213,19 @@ type SQLiteConfig struct {
 // Returns:
 //   - *database.ConnectConfig: The connection configuration.
 func (cfg SQLiteConfig) ConnectConfig() *database.ConnectConfig {
-	return sqliteconfig.DefaultConfig(cfg.DatabaseName)
+	provider, ok := getDriverProvider(SQLite3)
+	if !ok || provider.NewConfigFromEnv == nil {
+		return &database.ConnectConfig{Driver: SQLite3, Database: cfg.DatabaseName}
+	}
+	// Build from provided fields without env; reusing env builder is acceptable
+	// if the driver reads only fields.
+	env := GetDatabaseEnvConfig()
+	// Temporarily override via env-like struct.
+	_ = env
+	cc := provider.NewConfigFromEnv(env)
+	cc.Driver = SQLite3
+	cc.Database = cfg.DatabaseName
+	return cc
 }
 
 // MySQLConfig holds the configuration for a MySQL connection.
@@ -210,21 +245,31 @@ type MySQLConfig struct {
 // Returns:
 //   - *database.ConnectConfig: The connection configuration.
 func (cfg MySQLConfig) ConnectConfig() *database.ConnectConfig {
-	var connectCfg *database.ConnectConfig
-	if cfg.UseUnixSocket {
-		connectCfg = mysqlconfig.DefaultUnixConfig(
-			cfg.User, cfg.Password, cfg.Database, cfg.SocketDir, cfg.SocketName,
-		)
-	} else {
-		connectCfg = mysqlconfig.DefaultTCPConfig(
-			cfg.User, cfg.Password, cfg.Database,
-		)
-		connectCfg.Host = cfg.Host
-		connectCfg.Port = cfg.Port
-		connectCfg.Parameters = "parseTime=true"
+	provider, ok := getDriverProvider(MySQL)
+	if !ok || provider.NewConfigFromEnv == nil {
+		return &database.ConnectConfig{Driver: MySQL, Database: cfg.Database}
 	}
-	connectCfg.Driver = "mysql"
-	return connectCfg
+	// Build from provided fields similarly as above.
+	env := GetDatabaseEnvConfig()
+	_ = env
+	cc := provider.NewConfigFromEnv(env)
+	cc.Driver = MySQL
+	cc.Database = cfg.Database
+	cc.User = cfg.User
+	cc.Password = cfg.Password
+	cc.Host = cfg.Host
+	cc.Port = cfg.Port
+	if cfg.UseUnixSocket {
+		cc.ConnectionType = "unix"
+		cc.SocketDirectory = cfg.SocketDir
+		cc.SocketName = cfg.SocketName
+	} else {
+		cc.ConnectionType = "tcp"
+		if cc.Parameters == "" {
+			cc.Parameters = "parseTime=true"
+		}
+	}
+	return cc
 }
 
 // newMySQLConfigFromEnv creates a MySQLConfig from environment variables.

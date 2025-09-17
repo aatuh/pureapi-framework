@@ -13,7 +13,7 @@ import (
 	"github.com/aatuh/pureapi-core/logging"
 	"github.com/aatuh/pureapi-framework/defaults"
 	"github.com/aatuh/pureapi-framework/util"
-	"github.com/aatuh/pureapi-util/urlencoder"
+	"github.com/aatuh/urlcodec"
 )
 
 // Constants for HTTP headers and content types.
@@ -173,7 +173,7 @@ func SendParsedRequest[Output any](
 
 	// If URL parameters exist, encode and append them.
 	if parsedInput.URLParameters != nil {
-		params, err := urlencoder.NewURLEncoder().
+		params, err := urlcodec.NewURLEncoder().
 			Encode(parsedInput.URLParameters)
 		if err != nil {
 			return nil, err

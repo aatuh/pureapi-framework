@@ -5,10 +5,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aatuh/envvar"
 	"github.com/aatuh/pureapi-core/event"
 	"github.com/aatuh/pureapi-core/logging"
 	"github.com/aatuh/pureapi-framework/api/middleware"
-	"github.com/pureapi/pureapi-util/envvar"
 )
 
 // EnvVarConfig holds the names of the environment variables used.

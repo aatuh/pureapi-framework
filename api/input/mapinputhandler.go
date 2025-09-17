@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"unicode/utf8"
 
+	"github.com/aatuh/pickmap"
 	"github.com/aatuh/pureapi-framework/defaults"
-	"github.com/aatuh/pureapi-util/objectpicker"
-	"github.com/aatuh/pureapi-util/urlencoder"
-	"github.com/aatuh/pureapi-util/validate"
+	"github.com/aatuh/urlcodec"
+	"github.com/aatuh/validate"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -179,8 +179,8 @@ func (h *MapInputHandler[Input]) pickMap(
 	}
 
 	// Otherwise, fall back to the standard objectpicker.
-	return objectpicker.NewObjectPicker(
-		urlencoder.NewURLEncoder(), h.conversionMap,
+	return pickmap.NewPickmap(
+		urlcodec.NewURLEncoder(), h.conversionMap,
 	).PickMap(r, mapFieldConfig)
 }
 
@@ -192,13 +192,13 @@ func (h *MapInputHandler[Input]) getValidator() *validate.Validate {
 // mapFieldConfigFromAPIFields converts an APIFields to a MapFieldConfig.
 func (h *MapInputHandler[Input]) mapFieldConfigFromAPIFields(
 	apiFields APIFields,
-) (*objectpicker.MapFieldConfig, error) {
-	cfg := &objectpicker.MapFieldConfig{
-		Fields: make(map[string]*objectpicker.MapFieldConfig),
+) (*pickmap.MapFieldConfig, error) {
+	cfg := &pickmap.MapFieldConfig{
+		Fields: make(map[string]*pickmap.MapFieldConfig),
 	}
 	// Convert each field to a MapFieldConfig.
 	for _, field := range apiFields {
-		fieldCfg := &objectpicker.MapFieldConfig{
+		fieldCfg := &pickmap.MapFieldConfig{
 			Source:       field.Source,
 			ExpectedType: field.Type,
 			DefaultValue: field.Default,

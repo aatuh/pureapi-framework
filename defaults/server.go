@@ -5,10 +5,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aatuh/envvar"
 	"github.com/aatuh/pureapi-core/endpoint"
 	"github.com/aatuh/pureapi-core/event"
 	"github.com/aatuh/pureapi-core/server"
-	"github.com/pureapi/pureapi-util/envvar"
 )
 
 // ServerConfig holds the server configuration.

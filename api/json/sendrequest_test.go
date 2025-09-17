@@ -12,7 +12,7 @@ import (
 	"github.com/aatuh/pureapi-core/logging"
 	"github.com/aatuh/pureapi-framework/defaults"
 	"github.com/aatuh/pureapi-framework/util"
-	"github.com/aatuh/pureapi-util/urlencoder"
+	"github.com/aatuh/urlcodec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -114,7 +114,7 @@ func (s *SendRequestTestSuite) TestSendParsedRequest_GET_Success() {
 	q := parsedURL.Query().Get("q")
 	assert.Equal(s.T(), "search", q)
 	// Verify that the body is empty.
-	body, _ := urlencoder.NewURLEncoder().Encode(rd.URLParameters)
+	body, _ := urlcodec.NewURLEncoder().Encode(rd.URLParameters)
 	assert.True(s.T(), body.Encode() != "")
 }
 

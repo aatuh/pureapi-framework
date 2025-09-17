@@ -1,10 +1,10 @@
 package defaults
 
 import (
+	"fmt"
+
 	"github.com/aatuh/pureapi-core/database"
 	"github.com/aatuh/pureapi-framework/db"
-	"github.com/pureapi/pureapi-sqlite/errorchecker"
-	"github.com/pureapi/pureapi-sqlite/query"
 )
 
 // Query returns a new Query.
@@ -12,7 +12,19 @@ import (
 // Returns:
 //   - Query: A new Query.
 func Query() db.Query {
-	return &query.Query{}
+	// Prefer cached driver; fallback to reading the env.
+	if name, ok := getCurrentDriverName(); ok {
+		if f, ok := getQueryFactory(name); ok {
+			return f()
+		}
+	}
+	name := GetDBDriverName()
+	if f, ok := getQueryFactory(name); ok {
+		return f()
+	}
+	panic(fmt.Errorf(
+		"defaults.Query: no query factory registered for driver %q", name,
+	))
 }
 
 // QueryErrorChecker returns a new QueryErrorChecker.
@@ -20,7 +32,20 @@ func Query() db.Query {
 // Returns:
 //   - QueryErrorChecker: A new QueryErrorChecker.
 func QueryErrorChecker() database.ErrorChecker {
-	return errorchecker.NewErrorChecker()
+	// Prefer cached driver; fallback to reading the env.
+	if name, ok := getCurrentDriverName(); ok {
+		if f, ok := getErrorCheckerFactory(name); ok {
+			return f()
+		}
+	}
+	name := GetDBDriverName()
+	if f, ok := getErrorCheckerFactory(name); ok {
+		return f()
+	}
+	panic(fmt.Errorf(
+		"defaults.QueryErrorChecker: no error checker registered for driver %q",
+		name,
+	))
 }
 
 // MutatorRepo returns a new MutatorRepo.

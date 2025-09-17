@@ -3,7 +3,7 @@ package defaults
 import (
 	"sync/atomic"
 
-	"github.com/pureapi/pureapi-util/uuid"
+	"github.com/aatuh/uuid"
 )
 
 // UUID is a string alias that represents a UUID.
